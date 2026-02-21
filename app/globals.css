@@ -10,6 +10,24 @@ body {
   @apply min-h-screen bg-gradient-to-b from-harbor-cream via-harbor-mint to-harbor-sky text-harbor-ink antialiased;
 }
 
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #f1e8dd;
+  border-radius: 9999px;
+}
+
+.chat-pattern {
+  background-image: radial-gradient(rgba(238, 157, 43, 0.12) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
 a {
   @apply text-harbor-ink underline-offset-4 hover:underline;
 }

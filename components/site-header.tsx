@@ -19,6 +19,8 @@ export async function SiteHeader() {
           {!user && <Link href="/auth">Sign in</Link>}
           {user && <Link href="/onboarding">Profile</Link>}
           {user && <Link href="/matches">Matches</Link>}
+          {user && <Link href="/messages">Messages</Link>}
+          {user && <Link href="/feed">Feed</Link>}
           {isAdmin && <Link href="/admin">Admin</Link>}
           {user && (
             <Link href="/auth/signout" className="btn-secondary no-underline">

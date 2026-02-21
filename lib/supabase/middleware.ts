@@ -1,6 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+type CookieToSet = {
+  name: string;
+  value: string;
+  options?: Record<string, unknown>;
+};
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -12,7 +18,7 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: CookieToSet[]) {
           cookiesToSet.forEach(({ name, value, options }) => {
             request.cookies.set(name, value);
           });
@@ -20,7 +26,7 @@ export async function updateSession(request: NextRequest) {
           response = NextResponse.next({ request });
 
           cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
+            response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]);
           });
         }
       }
@@ -34,6 +40,8 @@ export async function updateSession(request: NextRequest) {
   const requiresAuth =
     request.nextUrl.pathname.startsWith("/onboarding") ||
     request.nextUrl.pathname.startsWith("/matches") ||
+    request.nextUrl.pathname.startsWith("/messages") ||
+    request.nextUrl.pathname.startsWith("/feed") ||
     request.nextUrl.pathname.startsWith("/admin");
 
   if (requiresAuth && !user) {
