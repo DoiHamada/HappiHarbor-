@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply min-h-screen bg-gradient-to-b from-harbor-cream via-harbor-mint to-harbor-sky text-harbor-ink antialiased;
+}
+
+a {
+  @apply text-harbor-ink underline-offset-4 hover:underline;
+}
+
+main {
+  @apply mx-auto w-full max-w-5xl px-4 pb-16 pt-8;
+}
+
+.card {
+  @apply rounded-xl2 bg-white/90 p-5 shadow-soft backdrop-blur;
+}
+
+.input {
+  @apply w-full rounded-xl border border-harbor-sky bg-white px-3 py-2 text-sm outline-none ring-harbor-coral transition focus:ring-2;
+}
+
+.label {
+  @apply text-sm font-medium text-harbor-ink;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-xl bg-harbor-ink px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-xl border border-harbor-ink/20 bg-white px-4 py-2 text-sm font-semibold text-harbor-ink transition hover:bg-harbor-cream;
+}
