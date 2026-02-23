@@ -1,8 +1,8 @@
 <svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-  <rect width="256" height="256" fill="#F3F4F3"/>
-  <circle cx="128" cy="128" r="100" fill="none" stroke="#DDEEE6" stroke-width="12" stroke-dasharray="500 70" transform="rotate(-40 128 128)"/>
-  <circle cx="128" cy="128" r="86" fill="none" stroke="#F1E8D4" stroke-width="8" stroke-dasharray="430 54" transform="rotate(30 128 128)"/>
-  <rect x="95" y="92" width="34" height="48" rx="14" fill="#F6AA90"/>
-  <rect x="131" y="92" width="34" height="48" rx="14" fill="#ED9F2B"/>
-  <path d="M90 143H170C170 156 160 166 148 166H112C100 166 90 156 90 143Z" fill="#A8D8C8"/>
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <circle cx="128" cy="128" r="108" fill="none" stroke="#BFE7DB" stroke-width="14" stroke-dasharray="540 72" transform="rotate(-40 128 128)"/>
+  <circle cx="128" cy="128" r="90" fill="none" stroke="#F4E5C9" stroke-width="10" stroke-dasharray="452 62" transform="rotate(30 128 128)"/>
+  <rect x="95" y="92" width="34" height="48" rx="14" fill="#F59F83"/>
+  <rect x="131" y="92" width="34" height="48" rx="14" fill="#F29E20"/>
+  <path d="M90 143H170C170 156 160 166 148 166H112C100 166 90 156 90 143Z" fill="#91D4BF"/>
 </svg>
