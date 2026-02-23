@@ -12,7 +12,7 @@ export default function AuthPage() {
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next");
   const modeParam = searchParams.get("mode");
-  const next = nextParam && nextParam.startsWith("/") ? nextParam : "/onboarding";
+  const next = nextParam && nextParam.startsWith("/") ? nextParam : "/discover";
   const initialMode: Mode = modeParam === "sign_up" ? "sign_up" : "sign_in";
 
   const [mode, setMode] = useState<Mode>(initialMode);

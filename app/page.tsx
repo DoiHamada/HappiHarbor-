@@ -20,7 +20,7 @@ export default async function HomePage() {
       redirect("/onboarding");
     }
 
-    redirect("/matches");
+    redirect("/discover");
   }
 
   const safetyCards = [

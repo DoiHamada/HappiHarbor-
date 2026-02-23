@@ -28,6 +28,9 @@ export async function SiteHeader() {
           </div>
         ) : (
           <nav className="flex items-center gap-3 text-sm">
+            <Link href="/discover">Discover</Link>
+            <Link href="/messages">Messages</Link>
+            <Link href="/settings">Settings</Link>
             <Link href="/onboarding">Profile</Link>
             <Link href="/matches">Matches</Link>
             {isAdmin && <Link href="/admin">Admin</Link>}
