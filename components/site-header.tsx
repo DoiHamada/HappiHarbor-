@@ -17,8 +17,11 @@ export async function SiteHeader() {
         </Link>
         <nav className="flex items-center gap-3 text-sm">
           {!user && <Link href="/auth">Sign in</Link>}
+          {user && <Link href="/discover">Discover</Link>}
+          {user && <Link href="/messages">Messages</Link>}
           {user && <Link href="/onboarding">Profile</Link>}
           {user && <Link href="/matches">Matches</Link>}
+          {user && <Link href="/settings">Settings</Link>}
           {isAdmin && <Link href="/admin">Admin</Link>}
           {user && (
             <Link href="/auth/signout" className="btn-secondary no-underline">

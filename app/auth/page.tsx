@@ -11,7 +11,7 @@ export default function AuthPage() {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next");
-  const next = nextParam && nextParam.startsWith("/") ? nextParam : "/onboarding";
+  const next = nextParam && nextParam.startsWith("/") ? nextParam : "/discover";
 
   const [mode, setMode] = useState<Mode>("sign_in");
   const [email, setEmail] = useState("");

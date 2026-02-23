@@ -207,3 +207,45 @@ Admin capabilities:
 ## 10. Open Implementation Notes
 - Legal/regulatory handling for minors must be finalized per target Southeast Asia launch countries.
 - Country-specific policy handling (age of consent, data retention, and reporting obligations) should be included before production launch.
+
+## 11. UI Implementation Updates (Current Build)
+
+### 11.1 Landing Page
+- Replaced the initial MVP hero with a full marketing-style landing page containing:
+  - Hero section with "Real Connection" visual card
+  - Social proof stats strip
+  - Safety principles cards
+  - "Ready to sail" walkthrough section
+  - Large call-to-action section
+  - Multi-column footer
+- Updated "Ready to sail" image card styling to a framed visual with bottom overlay label.
+
+### 11.2 Brand & Logo
+- Introduced project SVG logo assets in `public/` and app icon under `app/icon.svg`.
+- Applied user-provided sailboat SVG logo as the active logo mark.
+- Adjusted sailboat scaling/centering in the logo canvas for better visual alignment.
+- Added downloadable logo outputs in `public/` for design handoff and reuse.
+
+### 11.3 Authentication & Header UX
+- Updated authentication language and flows toward "Log in" / "Join Now" behavior.
+- Added top-level Discover route access for authenticated users in the main header.
+
+### 11.4 Discover Feed (New Page)
+- Added `/discover` page (authenticated route).
+- Implemented icon-only sidebar navigation for Discover UX.
+- Removed "Safety Center" from Discover nav and included "Matching".
+- Removed filter button pattern from the Discover header.
+- Added search bar that filters posts by user name or user ID.
+- Added "Share your thoughts" composer supporting:
+  - Text-only thought posts
+  - Real image file upload to Supabase Storage (`discover-posts` bucket)
+- Discover feed body now renders user-generated style text/photo posts.
+- Right panel keeps lightweight insight/safety content without a "Nearby Events" section.
+
+### 11.5 Navigation & Routing Updates
+- Default authenticated landing route changed from `/matches` to `/discover`.
+- Auth fallback redirect target changed to `/discover`.
+- Added linkable authenticated routes:
+  - `/messages`
+  - `/settings`
+- Header navigation now exposes Discover, Messages, Matches, Profile, and Settings for signed-in users.
