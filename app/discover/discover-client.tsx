@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 type DiscoverPost = {
@@ -35,27 +34,6 @@ const seedPosts: DiscoverPost[] = [
     text: "Bookstore morning and a late brunch. Who else likes simple weekends?",
     createdAt: "4h ago"
   }
-];
-
-const messagePreview = [
-  { id: "m1", name: "Jamie Rivera", text: "Loved your harbor photo. Coffee this weekend?", time: "10m" },
-  { id: "m2", name: "Avery Chen", text: "Your ramen post made me hungry.", time: "1h" },
-  { id: "m3", name: "Morgan Lee", text: "Thanks for the thoughtful message yesterday.", time: "3h" }
-];
-
-type NavItem = {
-  label: string;
-  href: string;
-  icon: string;
-  active?: boolean;
-};
-
-const navItems: NavItem[] = [
-  { label: "Discovery", href: "/discover", icon: "⌕", active: true },
-  { label: "Messages", href: "/messages", icon: "✉" },
-  { label: "Matching", href: "/matches", icon: "❤" },
-  { label: "Profile", href: "/onboarding", icon: "◉" },
-  { label: "Settings", href: "/settings", icon: "⚙" }
 ];
 
 const DISCOVER_POSTS_BUCKET = "discover-posts";
@@ -136,33 +114,11 @@ export function DiscoverClient({ currentUserName, currentUserId }: DiscoverClien
 
   return (
     <div className="-mx-4 min-h-[calc(100vh-80px)] bg-[#f8f7f6] px-4 md:-mx-8 md:px-8">
-      <div className="mx-auto grid max-w-[1320px] grid-cols-1 gap-6 py-6 lg:grid-cols-[84px_1fr]">
-        <aside className="hidden rounded-3xl border border-[#ee9d2b]/15 bg-white/70 p-3 lg:block">
-          <div className="flex h-full flex-col items-center gap-3">
-            <img src="/logo-mark.svg" alt="HappiHarbor" className="h-11 w-11 rounded-full bg-white p-1" />
-            <nav className="mt-3 flex flex-col gap-2">
-              {navItems.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  title={item.label}
-                  className={`grid h-11 w-11 place-items-center rounded-full text-lg no-underline transition ${
-                    item.active ? "bg-[#ee9d2b]/20 text-[#ee9d2b]" : "text-[#67718a] hover:bg-[#ee9d2b]/10"
-                  }`}
-                >
-                  <span aria-hidden="true">{item.icon}</span>
-                  <span className="sr-only">{item.label}</span>
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </aside>
-
+      <div className="mx-auto max-w-[1320px] py-6">
         <main className="space-y-6">
           <header className="rounded-3xl border border-[#ee9d2b]/10 bg-white/80 p-5 backdrop-blur">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h1 className="text-2xl font-black text-[#1e2740]">Discover</h1>
                 <p className="text-sm text-[#6a738a]">Find meaningful posts from the community.</p>
               </div>
               <div className="relative w-full md:max-w-sm">
@@ -210,30 +166,6 @@ export function DiscoverClient({ currentUserName, currentUserId }: DiscoverClien
               </button>
               {formMessage && <p className="text-sm text-[#6a738a]">{formMessage}</p>}
             </form>
-          </section>
-
-          <section className="rounded-3xl border border-[#ee9d2b]/10 bg-white p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#1e2740]">Message Box</h2>
-              <Link href="/messages" className="text-sm font-semibold text-[#b7700f] no-underline">
-                Open messages
-              </Link>
-            </div>
-            <div className="mt-4 space-y-3">
-              {messagePreview.map((msg) => (
-                <Link
-                  key={msg.id}
-                  href="/messages"
-                  className="block rounded-2xl border border-[#e6e8f0] bg-[#fcfcfd] px-4 py-3 no-underline transition hover:border-[#ee9d2b]/40"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-[#1e2740]">{msg.name}</p>
-                    <span className="text-xs text-[#8a94aa]">{msg.time}</span>
-                  </div>
-                  <p className="mt-1 text-sm text-[#5d6680]">{msg.text}</p>
-                </Link>
-              ))}
-            </div>
           </section>
 
           <section className="space-y-4">
