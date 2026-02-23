@@ -47,6 +47,21 @@ export default async function OnboardingPage() {
       </div>
 
       <form action={saveOnboarding} className="card grid gap-4">
+        <div className="grid gap-3 rounded-xl border border-harbor-ink/10 bg-white p-4">
+          <p className="label">Profile avatar</p>
+          <div className="flex items-center gap-4">
+            <img
+              src={profile?.avatar_url ?? "/logo-mark.svg"}
+              alt="Current profile avatar"
+              className="h-16 w-16 rounded-full border border-harbor-ink/10 object-cover"
+            />
+            <div className="text-xs text-harbor-ink/70">
+              Upload a JPG or PNG image (max 5MB). If none is uploaded, preset avatar is used.
+            </div>
+          </div>
+          <input className="input file:mr-3 file:rounded-full file:border-0 file:bg-harbor-cream file:px-3 file:py-1 file:text-xs file:font-semibold" name="avatar_file" type="file" accept="image/jpeg,image/png" />
+        </div>
+
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1">
             <label className="label">Display name</label>

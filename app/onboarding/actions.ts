@@ -41,6 +41,52 @@ export async function saveOnboarding(formData: FormData) {
   const sexualPreference = String(formData.get("sexual_preference") ?? "prefer_not_to_say");
   const skinTone = String(formData.get("skin_tone") ?? "prefer_not_to_say");
   const avatarKey = String(formData.get("avatar_key") ?? "");
+  const avatarFile = formData.get("avatar_file");
+
+  const { data: existingProfile } = await supabase
+    .from("profiles")
+    .select("avatar_storage_path,avatar_url")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  let avatarUrl: string | null = existingProfile?.avatar_url ?? null;
+  let avatarStoragePath: string | null = existingProfile?.avatar_storage_path ?? null;
+
+  if (avatarFile instanceof File && avatarFile.size > 0) {
+    const allowedTypes = new Set(["image/jpeg", "image/png"]);
+    if (!allowedTypes.has(avatarFile.type)) {
+      throw new Error("Invalid avatar file type. Use JPG or PNG.");
+    }
+
+    const maxBytes = 5 * 1024 * 1024;
+    if (avatarFile.size > maxBytes) {
+      throw new Error("Avatar file is too large. Maximum size is 5MB.");
+    }
+
+    const extFromName = avatarFile.name.split(".").pop()?.toLowerCase();
+    const ext = extFromName && /^[a-z0-9]+$/.test(extFromName) ? extFromName : "jpg";
+    const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage.from("profile-avatars").upload(filePath, avatarFile, {
+      contentType: avatarFile.type,
+      upsert: false
+    });
+
+    if (uploadError) {
+      throw new Error(`Avatar upload failed: ${uploadError.message}`);
+    }
+
+    if (existingProfile?.avatar_storage_path) {
+      await supabase.storage.from("profile-avatars").remove([existingProfile.avatar_storage_path]);
+    }
+
+    const {
+      data: { publicUrl }
+    } = supabase.storage.from("profile-avatars").getPublicUrl(filePath);
+
+    avatarUrl = publicUrl;
+    avatarStoragePath = filePath;
+  }
 
   if (!GENDER_OPTIONS.includes(gender as (typeof GENDER_OPTIONS)[number])) {
     throw new Error("Invalid gender option.");
@@ -94,6 +140,8 @@ export async function saveOnboarding(formData: FormData) {
       weight_kg: weightKg,
       skin_tone: skinTone,
       avatar_key: avatarKey,
+      avatar_url: avatarUrl,
+      avatar_storage_path: avatarStoragePath,
       bio: bioRaw || null,
       is_published: isPublished
     },
