@@ -114,7 +114,7 @@ export function DiscoverClient({ currentUserName, currentUserId }: DiscoverClien
 
   return (
     <div className="-mx-4 min-h-[calc(100vh-80px)] bg-[#f8f7f6] px-4 md:-mx-8 md:px-8">
-      <div className="mx-auto max-w-[1320px] py-6">
+      <div className="mx-auto max-w-[980px] py-6">
         <main className="space-y-6">
           <header className="rounded-3xl border border-[#ee9d2b]/10 bg-white/80 p-5 backdrop-blur">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -122,9 +122,7 @@ export function DiscoverClient({ currentUserName, currentUserId }: DiscoverClien
                 <p className="text-sm text-[#6a738a]">Find meaningful posts from the community.</p>
               </div>
               <div className="relative w-full md:max-w-sm">
-                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#8a94aa]">
-                  ⌕
-                </span>
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#8a94aa]">⌕</span>
                 <input
                   type="text"
                   value={query}
@@ -147,9 +145,7 @@ export function DiscoverClient({ currentUserName, currentUserId }: DiscoverClien
                 className="min-h-24 w-full rounded-2xl border border-[#e5e7ef] bg-[#fcfcfd] px-4 py-3 text-sm text-[#1f273f] outline-none ring-[#ee9d2b]/40 focus:ring-2"
               />
               <label className="block rounded-2xl border border-[#e5e7ef] bg-[#fcfcfd] px-4 py-3 text-sm text-[#1f273f]">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-[#8a94aa]">
-                  Upload Daily Photo
-                </span>
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-[#8a94aa]">Upload Daily Photo</span>
                 <input
                   type="file"
                   accept="image/*"
