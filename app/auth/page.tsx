@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -11,14 +11,26 @@ export default function AuthPage() {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next");
+  const modeParam = searchParams.get("mode");
   const next = nextParam && nextParam.startsWith("/") ? nextParam : "/onboarding";
+  const initialMode: Mode = modeParam === "sign_up" ? "sign_up" : "sign_in";
 
-  const [mode, setMode] = useState<Mode>("sign_in");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (modeParam === "sign_up") {
+      setMode("sign_up");
+      return;
+    }
+    if (modeParam === "sign_in") {
+      setMode("sign_in");
+    }
+  }, [modeParam]);
 
   async function onEmailAuth(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -97,7 +109,7 @@ export default function AuthPage() {
     <section className="mx-auto max-w-md space-y-4">
       <div className="card space-y-4">
         <h1 className="text-2xl font-bold">Welcome to HappiHarbor</h1>
-        <p className="text-sm text-harbor-ink/70">Sign in or create an account to continue.</p>
+        <p className="text-sm text-harbor-ink/70">Log in or create an account to continue.</p>
 
         <div className="grid grid-cols-2 gap-2 rounded-xl bg-harbor-cream p-1">
           <button
@@ -107,7 +119,7 @@ export default function AuthPage() {
             }`}
             onClick={() => setMode("sign_in")}
           >
-            Sign in
+            Log in
           </button>
           <button
             type="button"
@@ -116,7 +128,7 @@ export default function AuthPage() {
             }`}
             onClick={() => setMode("sign_up")}
           >
-            Create account
+            Join Now
           </button>
         </div>
 
@@ -170,7 +182,7 @@ export default function AuthPage() {
                 ? "Create account"
                 : mode === "forgot"
                   ? "Send reset link"
-                  : "Sign in"}
+                  : "Log in"}
           </button>
         </form>
 
@@ -179,7 +191,7 @@ export default function AuthPage() {
           className="text-left text-sm text-harbor-ink/80 underline-offset-4 hover:underline"
           onClick={() => setMode(mode === "forgot" ? "sign_in" : "forgot")}
         >
-          {mode === "forgot" ? "Back to sign in" : "Forgot password?"}
+          {mode === "forgot" ? "Back to log in" : "Forgot password?"}
         </button>
 
         {mode !== "forgot" && (

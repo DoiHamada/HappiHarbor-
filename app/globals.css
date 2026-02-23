@@ -7,7 +7,7 @@
 }
 
 body {
-  @apply min-h-screen bg-gradient-to-b from-harbor-cream via-harbor-mint to-harbor-sky text-harbor-ink antialiased;
+  @apply min-h-screen bg-[#f6f4f1] text-harbor-ink antialiased;
 }
 
 a {
@@ -15,7 +15,7 @@ a {
 }
 
 main {
-  @apply mx-auto w-full max-w-5xl px-4 pb-16 pt-8;
+  @apply mx-auto w-full max-w-[1180px] px-4 pb-16 pt-2 md:px-8;
 }
 
 .card {
