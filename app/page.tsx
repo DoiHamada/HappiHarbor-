@@ -94,16 +94,23 @@ export default async function HomePage() {
             </Link>
           </div>
         </div>
-        <div className="rounded-[2.25rem] bg-gradient-to-br from-[#5f3a1a] via-[#a0713d] to-[#3f260f] p-3 shadow-[0_30px_45px_-30px_rgba(15,19,38,0.65)]">
-          <div className="overflow-hidden rounded-[1.8rem] bg-[#d6b18c]">
+        <div className="rounded-[2.25rem] border-[14px] border-[#8b5a2a] bg-[#d2b28f] p-0 shadow-[0_30px_45px_-30px_rgba(15,19,38,0.65)]">
+          <div className="overflow-hidden rounded-[1.6rem] bg-[#d6b18c]">
             <img
-              src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuB4wf4XIAdVBQI-JxLgi7WZwTBH5odCwWjSmO1GdCDt3mQQkw4Lo5uaq5gbnIIC8HL3TrEFNtpcJE7vewPjUXnXYD0kRdIFhPai-zY45a-Ge2XXse7RXBGpF1PurgD-FUyTtBQecEyuWGii1S6K7DNgVeXlw39FDXMXfxidF_Xm93h_sXT49KsmI_SaDrGhEY3WN_dcB3P8bmztYEhkCkGzWUFI1lLtgqzrCffKqaK7ybGApJQ6Aaw_rDV7DndzXT0rjVdQxFwZLfyP"
               alt="Two people sharing coffee and laughing"
               className="h-[370px] w-full object-cover object-center"
             />
-            <div className="m-4 -mt-14 rounded-2xl bg-white/95 px-5 py-3 backdrop-blur">
-              <p className="text-sm font-semibold text-[#252a3b]">Real Connection</p>
-              <p className="text-xs text-[#666d80]">Matches based on shared values, not just swipes.</p>
+            <div className="m-4 -mt-14 flex items-center gap-4 rounded-[2rem] bg-white/95 px-5 py-4 backdrop-blur">
+              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-[#d9ede7]">
+                <svg viewBox="0 0 24 24" className="h-7 w-7 fill-[#0f9f73]" aria-hidden="true">
+                  <path d="M12 21.35 10.55 20.03C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z" />
+                </svg>
+              </span>
+              <div>
+                <p className="text-xl font-semibold text-[#252a3b]">Real Connection</p>
+                <p className="text-sm text-[#666d80]">Matches based on shared values, not just swipes.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -147,10 +154,10 @@ export default async function HomePage() {
       </section>
 
       <section id="how-it-works" className="grid gap-8 py-16 md:grid-cols-[1fr_1fr] md:items-center">
-        <div className="overflow-hidden rounded-[2rem] shadow-[0_25px_40px_-26px_rgba(0,0,0,0.4)]">
+        <div className="overflow-hidden rounded-[2rem] border-[14px] border-[#8b5a2a] shadow-[0_25px_40px_-26px_rgba(0,0,0,0.4)]">
           <img
-            src="https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=1400&q=80"
-            alt="Small group talking around a table"
+            src="https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1600&q=80"
+            alt="Friends together outdoors"
             className="h-[300px] w-full object-cover object-center"
           />
         </div>
