@@ -154,12 +154,18 @@ export default async function HomePage() {
       </section>
 
       <section id="how-it-works" className="grid gap-8 py-16 md:grid-cols-[1fr_1fr] md:items-center">
-        <div className="overflow-hidden rounded-[2rem] border-[14px] border-[#8b5a2a] shadow-[0_25px_40px_-26px_rgba(0,0,0,0.4)]">
-          <img
-            src="https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1600&q=80"
-            alt="Friends together outdoors"
-            className="h-[300px] w-full object-cover object-center"
-          />
+        <div className="overflow-hidden rounded-[2.2rem] border-[14px] border-[#8b5a2a] bg-[#d2b28f] p-3 shadow-[0_25px_40px_-26px_rgba(0,0,0,0.4)]">
+          <div className="relative overflow-hidden rounded-[1.6rem]">
+            <img
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuD70KUzI_tc0toOvO-mC2Z0GuTs9ONDcR2trbBwGdtTrmkZK9OsfjnE05TGwVAVFZrZho41Mt4YEML1Q33i_2mvKqiPnx3ne-X3rlsivF-04oke2A3bk8xSprdsfx70HELlGcRf6fuIc-jvY09dMfMnjMTT-mmUoshS99IFc707HYsEaui9RDqjEXWaO6_AXq0BbX8CwQiKoedq-a6qgji4jzjO6u_mwcURq_hbhs8ckVMjwKIbAG1iX5lvIfhcdKKg4iCkDQoNFcDb"
+              alt="Friends together outdoors"
+              className="h-[300px] w-full object-cover object-center"
+            />
+            <div className="absolute inset-x-4 bottom-4 rounded-[1.8rem] bg-white/95 px-6 py-4">
+              <p className="text-xl font-semibold text-[#252a3b]">Real Connection</p>
+              <p className="mt-1 text-sm text-[#666d80]">Matches based on shared values, not just swipes.</p>
+            </div>
+          </div>
         </div>
         <div className="space-y-5">
           <h2 className="text-4xl font-black text-[#131a30]">Ready to sail?</h2>
