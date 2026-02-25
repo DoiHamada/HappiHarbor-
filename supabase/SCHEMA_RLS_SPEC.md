@@ -31,6 +31,8 @@ Columns:
 - `skin_tone`
 - `avatar_key` (FK -> `avatar_presets.key`)
 - `bio`
+- `public_id` (stable app-facing user ID, format `HH-XXXXXXXXXXXX`)
+- `last_active_at` (presence/activity timestamp for active status UI)
 - `is_published`
 - `is_suspended`
 - timestamps

@@ -249,3 +249,15 @@ Admin capabilities:
   - `/messages`
   - `/settings`
 - Header navigation now exposes Discover, Messages, Matches, Profile, and Settings for signed-in users.
+
+### 11.6 Social Discovery & Messaging Enhancements
+- Discover page now uses live community data from `feed_posts` (thoughts + moment photos) and no longer uses local seed-only content.
+- Discover search supports member lookup by:
+  - display name
+  - user ID (`public_id`, `HH-XXXXXXXXXXXX` format)
+- Each member has a stable public user ID for in-app discovery and profile linking.
+- Users can open public member profiles at `/profile/[publicId]` when that member has a published profile.
+- Member active status is shown across discover, profile, and messaging experiences.
+- Messages page now shows available users ordered from active to inactive, with profile links and user IDs.
+- Messages now support direct chat start with published users (no request/approval step in this phase).
+- Conversations remain in chat-box format with direct message sending inside active conversations.

@@ -109,17 +109,25 @@ async function ensureConversation(
   throw new Error(error?.message ?? "Failed to create conversation.");
 }
 
-export async function sendMessageRequest(formData: FormData) {
+async function openDirectConversation(formData: FormData) {
   const { supabase, user } = await requireActiveUser();
   const targetUserId = toUuid(formData.get("target_user_id"));
-  const note = normalizeMessage(formData.get("request_message"), 300);
 
   if (!targetUserId || targetUserId === user.id) {
     redirect(urlFor({ error: "Choose a valid user." }));
   }
 
-  const { userA, userB } = pair(user.id, targetUserId);
+  const { data: targetProfile } = await supabase
+    .from("profiles")
+    .select("user_id,is_published,is_suspended")
+    .eq("user_id", targetUserId)
+    .maybeSingle();
 
+  if (!targetProfile || !targetProfile.is_published || targetProfile.is_suspended) {
+    redirect(urlFor({ error: "This user is unavailable for chat." }));
+  }
+
+  const { userA, userB } = pair(user.id, targetUserId);
   const { data: mutualMatch } = await supabase
     .from("matches")
     .select("id")
@@ -128,170 +136,33 @@ export async function sendMessageRequest(formData: FormData) {
     .eq("user_b", userB)
     .maybeSingle();
 
-  if (mutualMatch) {
-    const conversationId = await ensureConversation(supabase, user.id, targetUserId, "match", null);
-    revalidatePath(MESSAGES_PATH);
-    redirect(urlFor({ conversation: conversationId, info: "You are matched. Chat is open." }));
-  }
-
-  const { data: pendingRequest } = await supabase
-    .from("message_requests")
-    .select("id,requester_user_id,recipient_user_id")
-    .eq("status", "pending")
-    .or(
-      `and(requester_user_id.eq.${user.id},recipient_user_id.eq.${targetUserId}),and(requester_user_id.eq.${targetUserId},recipient_user_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  if (pendingRequest) {
-    if (pendingRequest.recipient_user_id === user.id) {
-      const { error: approveError } = await supabase
-        .from("message_requests")
-        .update({
-          status: "approved",
-          decided_at: new Date().toISOString()
-        })
-        .eq("id", pendingRequest.id)
-        .eq("recipient_user_id", user.id)
-        .eq("status", "pending");
-
-      if (approveError) {
-        redirect(urlFor({ error: approveError.message }));
-      }
-
-      const conversationId = await ensureConversation(
-        supabase,
-        user.id,
-        targetUserId,
-        "request",
-        pendingRequest.id
-      );
-
-      revalidatePath(MESSAGES_PATH);
-      redirect(urlFor({ conversation: conversationId, info: "Request approved. Chat is open." }));
-    }
-
-    redirect(urlFor({ info: "You already sent a message request to this user." }));
-  }
-
-  const { error: insertError } = await supabase.from("message_requests").insert({
-    requester_user_id: user.id,
-    recipient_user_id: targetUserId,
-    status: "pending",
-    message: note
-  });
-
-  if (insertError) {
-    redirect(urlFor({ error: insertError.message }));
-  }
-
-  revalidatePath(MESSAGES_PATH);
-  redirect(urlFor({ info: "Message request sent." }));
-}
-
-export async function decideMessageRequest(formData: FormData) {
-  const { supabase, user } = await requireActiveUser();
-  const requestId = toUuid(formData.get("request_id"));
-  const decision = String(formData.get("decision") ?? "").trim();
-
-  if (!requestId || (decision !== "approved" && decision !== "rejected")) {
-    redirect(urlFor({ error: "Invalid request action." }));
-  }
-
-  const { data: requestRow } = await supabase
-    .from("message_requests")
-    .select("id,requester_user_id,recipient_user_id,status")
-    .eq("id", requestId)
-    .eq("recipient_user_id", user.id)
-    .eq("status", "pending")
-    .maybeSingle();
-
-  if (!requestRow) {
-    redirect(urlFor({ error: "Request not found or already handled." }));
-  }
-
-  const { error: updateError } = await supabase
-    .from("message_requests")
-    .update({
-      status: decision,
-      decided_at: new Date().toISOString()
-    })
-    .eq("id", requestId)
-    .eq("recipient_user_id", user.id)
-    .eq("status", "pending");
-
-  if (updateError) {
-    redirect(urlFor({ error: updateError.message }));
-  }
-
-  if (decision === "approved") {
-    const conversationId = await ensureConversation(
+  let conversationId: string;
+  try {
+    conversationId = await ensureConversation(
       supabase,
-      requestRow.requester_user_id,
-      requestRow.recipient_user_id,
-      "request",
-      requestId
+      user.id,
+      targetUserId,
+      mutualMatch ? "match" : "request",
+      null
     );
-
-    revalidatePath(MESSAGES_PATH);
-    redirect(urlFor({ conversation: conversationId, info: "Request approved." }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to start chat right now.";
+    redirect(urlFor({ error: message }));
   }
-
   revalidatePath(MESSAGES_PATH);
-  redirect(urlFor({ info: "Message request declined." }));
+  redirect(urlFor({ conversation: conversationId }));
 }
 
-export async function cancelMessageRequest(formData: FormData) {
-  const { supabase, user } = await requireActiveUser();
-  const requestId = toUuid(formData.get("request_id"));
-
-  if (!requestId) {
-    redirect(urlFor({ error: "Invalid request." }));
-  }
-
-  const { error } = await supabase
-    .from("message_requests")
-    .update({
-      status: "canceled",
-      decided_at: new Date().toISOString()
-    })
-    .eq("id", requestId)
-    .eq("requester_user_id", user.id)
-    .eq("status", "pending");
-
-  if (error) {
-    redirect(urlFor({ error: error.message }));
-  }
-
-  revalidatePath(MESSAGES_PATH);
-  redirect(urlFor({ info: "Request canceled." }));
+export async function sendMessageRequest(formData: FormData) {
+  await openDirectConversation(formData);
 }
 
 export async function startMatchChat(formData: FormData) {
-  const { supabase, user } = await requireActiveUser();
-  const targetUserId = toUuid(formData.get("target_user_id"));
+  await openDirectConversation(formData);
+}
 
-  if (!targetUserId || targetUserId === user.id) {
-    redirect(urlFor({ error: "Choose a valid user." }));
-  }
-
-  const { userA, userB } = pair(user.id, targetUserId);
-
-  const { data: mutualMatch } = await supabase
-    .from("matches")
-    .select("id")
-    .eq("status", "mutual")
-    .eq("user_a", userA)
-    .eq("user_b", userB)
-    .maybeSingle();
-
-  if (!mutualMatch) {
-    redirect(urlFor({ error: "You can only start direct chat with mutual matches." }));
-  }
-
-  const conversationId = await ensureConversation(supabase, user.id, targetUserId, "match", null);
-  revalidatePath(MESSAGES_PATH);
-  redirect(urlFor({ conversation: conversationId }));
+export async function openDirectChat(formData: FormData) {
+  await openDirectConversation(formData);
 }
 
 export async function sendConversationMessage(formData: FormData) {
