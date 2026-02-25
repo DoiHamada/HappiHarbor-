@@ -215,66 +215,15 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
   return (
     <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen px-0 pb-0 pt-0">
       <div className="flex h-[calc(100vh-8rem)] min-h-[680px] w-full overflow-hidden bg-[#fcfaf8] text-slate-900">
-        <aside className="hidden w-20 flex-col items-center gap-8 border-r border-[#ee9d2b]/15 bg-white py-8 md:flex">
-          <div className="flex size-10 items-center justify-center rounded-full bg-[#ee9d2b]/20 text-sm font-bold text-[#ee9d2b]">
-            HH
-          </div>
-          <div className="flex flex-1 flex-col gap-4">
-            <div className="flex size-12 items-center justify-center rounded-full bg-[#ee9d2b]/10 text-xs font-semibold text-[#ee9d2b]">
-              Msg
-            </div>
-            <div className="flex size-12 items-center justify-center rounded-full text-xs font-semibold text-slate-400">
-              Mch
-            </div>
-            <div className="flex size-12 items-center justify-center rounded-full text-xs font-semibold text-slate-400">
-              Fed
-            </div>
-          </div>
-          <div className="flex size-12 items-center justify-center rounded-full border-2 border-[#ee9d2b]/20 bg-[#fff2df] text-xs font-semibold text-[#aa6920]">
-            {initials(myProfile.display_name)}
-          </div>
-        </aside>
-
         <section className="flex w-[360px] shrink-0 flex-col border-r border-[#ee9d2b]/10 bg-white">
           <header className="border-b border-[#ee9d2b]/10 p-6">
             <h1 className="text-xl font-bold">Messages</h1>
-            <p className="mt-1 text-xs text-slate-500">Start chatting with any published user.</p>
+            <p className="mt-1 text-xs text-slate-500">Start chatting with people.</p>
             {info && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{info}</p>}
             {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
           </header>
 
           <div className="custom-scrollbar flex-1 space-y-6 overflow-y-auto p-4">
-            <div className="space-y-2">
-              <h2 className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Conversations</h2>
-              {conversationItems.length === 0 ? (
-                <p className="px-2 text-xs text-slate-500">No active chats yet.</p>
-              ) : (
-                conversationItems.map((conversation) => (
-                  <Link
-                    key={conversation.id}
-                    href={`/messages?conversation=${conversation.id}`}
-                    className={`block rounded-2xl border p-3 no-underline transition ${
-                      selectedConversationId === conversation.id
-                        ? "border-[#ee9d2b]/40 bg-[#fff3e3]"
-                        : "border-transparent bg-slate-50 hover:border-[#ee9d2b]/25"
-                    }`}
-                  >
-                    <p className="text-sm font-semibold text-slate-900">{conversation.partnerName}</p>
-                    <p className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
-                      <span
-                        className={`inline-block size-2 rounded-full ${
-                          isRecentlyActive(conversation.partnerLastActiveAt) ? "bg-emerald-500" : "bg-slate-300"
-                        }`}
-                      />
-                      {conversation.source === "match" ? "Mutual match chat" : "Direct conversation"} ·{" "}
-                      {isRecentlyActive(conversation.partnerLastActiveAt) ? "Active now" : "Inactive"}
-                    </p>
-                    <p className="mt-1 text-[11px] text-slate-400">{formatDayTime(conversation.updated_at)}</p>
-                  </Link>
-                ))
-              )}
-            </div>
-
             <div className="space-y-2">
               <h2 className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">People</h2>
               {discoverPeople.length === 0 ? (
