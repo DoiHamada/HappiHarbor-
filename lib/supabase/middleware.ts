@@ -38,9 +38,12 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const requiresAuth =
+    request.nextUrl.pathname.startsWith("/discover") ||
     request.nextUrl.pathname.startsWith("/onboarding") ||
     request.nextUrl.pathname.startsWith("/matches") ||
     request.nextUrl.pathname.startsWith("/messages") ||
+    request.nextUrl.pathname.startsWith("/notifications") ||
+    request.nextUrl.pathname.startsWith("/profile") ||
     request.nextUrl.pathname.startsWith("/feed") ||
     request.nextUrl.pathname.startsWith("/admin");
 

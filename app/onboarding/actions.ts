@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { GENDER_OPTIONS, SEXUAL_PREFERENCE_OPTIONS, SKIN_TONE_OPTIONS } from "@/types/profile";
+import { GENDER_OPTIONS, LANGUAGE_OPTIONS, SEXUAL_PREFERENCE_OPTIONS, SKIN_TONE_OPTIONS } from "@/types/profile";
 
 function parseNumber(value: FormDataEntryValue | null, fallback: number): number {
   const parsed = Number(value ?? fallback);
@@ -16,6 +16,17 @@ function parseCsv(value: FormDataEntryValue | null): string[] | null {
     .map((item) => item.trim())
     .filter(Boolean);
   return normalized.length > 0 ? normalized : null;
+}
+
+function parseCheckboxValues(formData: FormData, key: string): string[] {
+  return formData
+    .getAll(key)
+    .map((entry) => String(entry).trim())
+    .filter(Boolean);
+}
+
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values));
 }
 
 export async function saveOnboarding(formData: FormData) {
@@ -40,16 +51,83 @@ export async function saveOnboarding(formData: FormData) {
   const gender = String(formData.get("gender") ?? "prefer_not_to_say");
   const sexualPreference = String(formData.get("sexual_preference") ?? "prefer_not_to_say");
   const skinTone = String(formData.get("skin_tone") ?? "prefer_not_to_say");
-  const avatarKey = String(formData.get("avatar_key") ?? "");
   const avatarFile = formData.get("avatar_file");
+
+  const preferredGendersFromCheckboxes = parseCheckboxValues(formData, "preferred_genders");
+  const preferredLanguagesFromCheckboxes = parseCheckboxValues(formData, "preferred_languages");
+
+  const preferredGenders = unique(
+    preferredGendersFromCheckboxes.length > 0
+      ? preferredGendersFromCheckboxes
+      : (parseCsv(formData.get("preferred_genders")) ?? [])
+  );
+  const preferredLanguages = unique(
+    preferredLanguagesFromCheckboxes.length > 0
+      ? preferredLanguagesFromCheckboxes
+      : (parseCsv(formData.get("preferred_languages")) ?? [])
+  );
+
+  if (!displayName) {
+    throw new Error("Display name is required.");
+  }
+
+  if (!GENDER_OPTIONS.includes(gender as (typeof GENDER_OPTIONS)[number])) {
+    throw new Error("Invalid gender option.");
+  }
+
+  if (
+    !SEXUAL_PREFERENCE_OPTIONS.includes(
+      sexualPreference as (typeof SEXUAL_PREFERENCE_OPTIONS)[number]
+    )
+  ) {
+    throw new Error("Invalid sexual preference option.");
+  }
+
+  if (!SKIN_TONE_OPTIONS.includes(skinTone as (typeof SKIN_TONE_OPTIONS)[number])) {
+    throw new Error("Invalid skin tone option.");
+  }
+
+  if (
+    preferredGenders.some(
+      (value) => !GENDER_OPTIONS.includes(value as (typeof GENDER_OPTIONS)[number])
+    )
+  ) {
+    throw new Error("Invalid preferred gender option.");
+  }
+
+  if (
+    preferredLanguages.some(
+      (value) => !LANGUAGE_OPTIONS.includes(value as (typeof LANGUAGE_OPTIONS)[number])
+    )
+  ) {
+    throw new Error("Invalid preferred language option.");
+  }
+
+  if (preferredGenders.length === 0) {
+    throw new Error("Choose at least one preferred gender.");
+  }
+
+  if (preferredLanguages.length === 0) {
+    throw new Error("Choose at least one communication language.");
+  }
 
   const { data: existingProfile } = await supabase
     .from("profiles")
-    .select("avatar_storage_path,avatar_url")
+    .select("avatar_storage_path,avatar_url,avatar_key")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  let avatarUrl: string | null = existingProfile?.avatar_url ?? null;
+  const { data: firstAvatar } = await supabase
+    .from("avatar_presets")
+    .select("key")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const avatarKey = existingProfile?.avatar_key ?? firstAvatar?.key ?? "harbor-bear-01";
+
+  let avatarUrl: string | null = existingProfile?.avatar_url ?? "/logo-mark.svg";
   let avatarStoragePath: string | null = existingProfile?.avatar_storage_path ?? null;
 
   if (avatarFile instanceof File && avatarFile.size > 0) {
@@ -88,22 +166,6 @@ export async function saveOnboarding(formData: FormData) {
     avatarStoragePath = filePath;
   }
 
-  if (!GENDER_OPTIONS.includes(gender as (typeof GENDER_OPTIONS)[number])) {
-    throw new Error("Invalid gender option.");
-  }
-
-  if (
-    !SEXUAL_PREFERENCE_OPTIONS.includes(
-      sexualPreference as (typeof SEXUAL_PREFERENCE_OPTIONS)[number]
-    )
-  ) {
-    throw new Error("Invalid sexual preference option.");
-  }
-
-  if (!SKIN_TONE_OPTIONS.includes(skinTone as (typeof SKIN_TONE_OPTIONS)[number])) {
-    throw new Error("Invalid skin tone option.");
-  }
-
   let minAge = parseNumber(formData.get("min_age"), ageYears >= 18 ? 18 : 13);
   let maxAge = parseNumber(formData.get("max_age"), ageYears >= 18 ? 35 : 17);
 
@@ -115,7 +177,6 @@ export async function saveOnboarding(formData: FormData) {
     maxAge = Math.max(minAge, maxAge);
   }
 
-  const preferredGenders = parseCsv(formData.get("preferred_genders"));
   const preferredNationalities = parseCsv(formData.get("preferred_nationalities"));
 
   const appearanceFilters = useAppearanceFilters
@@ -158,6 +219,7 @@ export async function saveOnboarding(formData: FormData) {
       min_age: minAge,
       max_age: maxAge,
       preferred_genders: preferredGenders,
+      preferred_languages: preferredLanguages,
       preferred_nationalities: preferredNationalities,
       use_appearance_filters: useAppearanceFilters,
       appearance_filters: appearanceFilters

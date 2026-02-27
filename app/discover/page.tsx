@@ -17,7 +17,7 @@ type DiscoverPostRow = {
     user_id: string;
     public_id: string | null;
     display_name: string;
-    avatar_key: string;
+    avatar_url: string | null;
     last_active_at: string | null;
   } | null;
 };
@@ -90,14 +90,14 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
 
   const { data: postsWithPresence, error: postsPresenceError } = await supabase
     .from("feed_posts")
-    .select("id,user_id,thought,photo_path,created_at,profiles(user_id,public_id,display_name,avatar_key,last_active_at)")
+    .select("id,user_id,thought,photo_path,created_at,profiles(user_id,public_id,display_name,avatar_url,last_active_at)")
     .order("created_at", { ascending: false })
     .limit(80);
 
   const { data: postsFallback, error: postsFallbackError } = postsPresenceError
     ? await supabase
         .from("feed_posts")
-        .select("id,user_id,thought,photo_path,created_at,profiles(user_id,display_name,avatar_key)")
+        .select("id,user_id,thought,photo_path,created_at,profiles(user_id,display_name,avatar_url)")
         .order("created_at", { ascending: false })
         .limit(80)
     : { data: null, error: null };
@@ -180,6 +180,11 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
           <p className="text-xs text-harbor-ink/70">Max 5MB. JPG, PNG, or WEBP.</p>
         </div>
 
+        <label className="flex items-center gap-2 text-sm text-harbor-ink/75">
+          <input type="checkbox" name="is_public" defaultChecked />
+          Make this moment public
+        </label>
+
         <button className="btn" type="submit">
           Post to Discover
         </button>
@@ -204,20 +209,29 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
               <article key={post.id} className="card space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    {profile ? (
-                      <Link
-                        href={`/profile/${profile.public_id ?? fallbackPublicId(profile.user_id)}`}
-                        className="text-sm font-semibold no-underline hover:underline"
-                      >
-                        {authorName}
-                      </Link>
-                    ) : (
-                      <p className="text-sm font-semibold">{authorName}</p>
-                    )}
-                    <p className="mt-1 flex items-center gap-2 text-xs text-harbor-ink/70">
-                      <span className={`inline-block size-2 rounded-full ${active ? "bg-emerald-500" : "bg-slate-300"}`} />
-                      {authorId} · {active ? "Active now" : "Inactive"}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={profile?.avatar_url ?? "/logo-mark.svg"}
+                        alt={`${authorName} avatar`}
+                        className="h-10 w-10 rounded-full border border-harbor-ink/10 object-cover"
+                      />
+                      <div>
+                        {profile ? (
+                          <Link
+                            href={`/profile/${profile.public_id ?? fallbackPublicId(profile.user_id)}`}
+                            className="text-sm font-semibold no-underline hover:underline"
+                          >
+                            {authorName}
+                          </Link>
+                        ) : (
+                          <p className="text-sm font-semibold">{authorName}</p>
+                        )}
+                        <p className="mt-1 flex items-center gap-2 text-xs text-harbor-ink/70">
+                          <span className={`inline-block size-2 rounded-full ${active ? "bg-emerald-500" : "bg-slate-300"}`} />
+                          {authorId} · {active ? "Active now" : "Inactive"}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                   <p className="text-xs text-harbor-ink/70">
                     {new Date(post.created_at).toLocaleString("en-US", {

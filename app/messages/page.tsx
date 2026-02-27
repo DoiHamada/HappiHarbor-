@@ -11,7 +11,7 @@ type ProfileLite = {
   user_id: string;
   public_id: string | null;
   display_name: string;
-  avatar_key: string;
+  avatar_url: string | null;
   last_active_at: string | null;
 };
 
@@ -37,23 +37,6 @@ function formatTime(value: string): string {
     hour: "numeric",
     minute: "2-digit"
   });
-}
-
-function formatDayTime(value: string): string {
-  return new Date(value).toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  });
-}
-
-function initials(name: string): string {
-  return name
-    .split(" ")
-    .map((part) => part.trim()[0] ?? "")
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 }
 
 function isRecentlyActive(lastActiveAt: string | null | undefined): boolean {
@@ -89,21 +72,21 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
 
   const { data: myProfileWithPresence, error: myProfilePresenceError } = await supabase
     .from("profiles")
-    .select("user_id,public_id,display_name,avatar_key,last_active_at,is_suspended")
+    .select("user_id,public_id,display_name,avatar_url,last_active_at,is_suspended")
     .eq("user_id", user.id)
     .maybeSingle();
 
   const { data: myProfileFallback } = myProfilePresenceError
     ? await supabase
         .from("profiles")
-        .select("user_id,display_name,avatar_key,is_suspended")
+        .select("user_id,display_name,avatar_url,is_suspended")
         .eq("user_id", user.id)
         .maybeSingle()
     : { data: null };
 
   const myProfile = (myProfileWithPresence ?? myProfileFallback) as
     | (ProfileLite & { is_suspended: boolean })
-    | ({ user_id: string; display_name: string; avatar_key: string; is_suspended: boolean; public_id?: null; last_active_at?: null })
+    | ({ user_id: string; display_name: string; avatar_url?: string | null; is_suspended: boolean; public_id?: null; last_active_at?: null })
     | null;
 
   if (!myProfile) {
@@ -141,13 +124,13 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
 
   const { data: profileRowsWithPresence, error: profileRowsPresenceError } = await supabase
     .from("profiles")
-    .select("user_id,public_id,display_name,avatar_key,last_active_at")
+    .select("user_id,public_id,display_name,avatar_url,last_active_at")
     .in("user_id", Array.from(profileIds));
 
   const { data: profileRowsFallback } = profileRowsPresenceError
     ? await supabase
         .from("profiles")
-        .select("user_id,display_name,avatar_key")
+        .select("user_id,display_name,avatar_url")
         .in("user_id", Array.from(profileIds))
     : { data: null };
 
@@ -165,7 +148,7 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
       partnerId,
       partnerPublicId: partner?.public_id ?? null,
       partnerName: partner?.display_name ?? "Member",
-      partnerAvatarKey: partner?.avatar_key ?? "member",
+      partnerAvatarUrl: partner?.avatar_url ?? null,
       partnerLastActiveAt: partner?.last_active_at ?? null
     };
   });
@@ -176,6 +159,10 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
     null;
 
   const selectedConversationId = selectedConversation?.id ?? null;
+
+  if (selectedConversationId) {
+    await supabase.rpc("mark_conversation_read", { p_conversation: selectedConversationId, p_user: user.id });
+  }
 
   const { data: messageRows } = selectedConversationId
     ? await supabase
@@ -190,7 +177,7 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
 
   const { data: discoverRowsWithPresence, error: discoverRowsPresenceError } = await supabase
     .from("profiles")
-    .select("user_id,public_id,display_name,avatar_key,last_active_at")
+    .select("user_id,public_id,display_name,avatar_url,last_active_at")
     .eq("is_published", true)
     .neq("user_id", user.id)
     .order("last_active_at", { ascending: false })
@@ -200,7 +187,7 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
   const { data: discoverRowsFallback } = discoverRowsPresenceError
     ? await supabase
         .from("profiles")
-        .select("user_id,display_name,avatar_key")
+        .select("user_id,display_name,avatar_url")
         .eq("is_published", true)
         .neq("user_id", user.id)
         .order("updated_at", { ascending: false })
@@ -236,13 +223,24 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
 
                   return (
                     <article key={person.user_id} className="rounded-2xl border border-slate-100 bg-white p-3">
-                      <Link href={`/profile/${personPublicId}`} className="text-sm font-semibold no-underline hover:underline">
-                        {person.display_name}
-                      </Link>
-                      <p className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
-                        <span className={`inline-block size-2 rounded-full ${active ? "bg-emerald-500" : "bg-slate-300"}`} />
-                        {personPublicId} · {active ? "Active now" : "Inactive"}
-                      </p>
+                      <div className="flex items-center gap-3">
+                        <Link href={`/profile/${personPublicId}`} className="no-underline">
+                          <img
+                            src={person.avatar_url ?? "/logo-mark.svg"}
+                            alt={`${person.display_name} avatar`}
+                            className="h-10 w-10 rounded-full border border-slate-200 object-cover"
+                          />
+                        </Link>
+                        <div className="min-w-0">
+                          <Link href={`/profile/${personPublicId}`} className="text-sm font-semibold no-underline hover:underline">
+                            {person.display_name}
+                          </Link>
+                          <p className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
+                            <span className={`inline-block size-2 rounded-full ${active ? "bg-emerald-500" : "bg-slate-300"}`} />
+                            {personPublicId} · {active ? "Active now" : "Inactive"}
+                          </p>
+                        </div>
+                      </div>
                       <div className="mt-3">
                         {existingConversationId ? (
                           <Link
@@ -276,17 +274,24 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
             <>
               <header className="flex h-20 items-center justify-between border-b border-[#ee9d2b]/10 bg-white/85 px-8 backdrop-blur">
                 <div>
-                  {selectedConversation.partnerPublicId ? (
-                    <Link
-                      href={`/profile/${selectedConversation.partnerPublicId}`}
-                      className="text-lg font-bold text-slate-900 no-underline hover:underline"
-                    >
-                      {selectedConversation.partnerName}
-                    </Link>
-                  ) : (
-                    <h2 className="text-lg font-bold text-slate-900">{selectedConversation.partnerName}</h2>
-                  )}
-                  <p className="flex items-center gap-2 text-sm text-[#c87a1f]">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={selectedConversation.partnerAvatarUrl ?? "/logo-mark.svg"}
+                      alt={`${selectedConversation.partnerName} avatar`}
+                      className="h-10 w-10 rounded-full border border-slate-200 object-cover"
+                    />
+                    {selectedConversation.partnerPublicId ? (
+                      <Link
+                        href={`/profile/${selectedConversation.partnerPublicId}`}
+                        className="text-lg font-bold text-slate-900 no-underline hover:underline"
+                      >
+                        {selectedConversation.partnerName}
+                      </Link>
+                    ) : (
+                      <h2 className="text-lg font-bold text-slate-900">{selectedConversation.partnerName}</h2>
+                    )}
+                  </div>
+                  <p className="mt-1 flex items-center gap-2 text-sm text-[#c87a1f]">
                     <span
                       className={`inline-block size-2 rounded-full ${
                         isRecentlyActive(selectedConversation.partnerLastActiveAt) ? "bg-emerald-500" : "bg-slate-300"
@@ -310,19 +315,19 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
                   ) : (
                     typedMessages.map((message) => {
                       const mine = message.sender_id === user.id;
-                      const senderName =
-                        message.sender_id === user.id
-                          ? "You"
-                          : (profilesById.get(message.sender_id)?.display_name ?? "Member");
+                      const senderProfile = profilesById.get(message.sender_id);
+                      const senderName = message.sender_id === user.id ? "You" : (senderProfile?.display_name ?? "Member");
 
                       return (
                         <div
                           key={message.id}
                           className={`flex max-w-[82%] items-end gap-3 ${mine ? "self-end flex-row-reverse" : ""}`}
                         >
-                          <div className="flex size-9 items-center justify-center rounded-full border border-[#ee9d2b]/20 bg-white text-xs font-semibold text-[#b7711d]">
-                            {initials(senderName)}
-                          </div>
+                          <img
+                            src={senderProfile?.avatar_url ?? "/logo-mark.svg"}
+                            alt={`${senderName} avatar`}
+                            className="h-9 w-9 rounded-full border border-[#ee9d2b]/20 object-cover"
+                          />
                           <div className={`rounded-2xl p-4 text-sm ${mine ? "bg-[#ee9d2b] text-white" : "bg-white text-slate-700"}`}>
                             <p className="whitespace-pre-wrap">{message.content}</p>
                             <p className={`mt-2 text-[11px] ${mine ? "text-orange-100" : "text-slate-400"}`}>

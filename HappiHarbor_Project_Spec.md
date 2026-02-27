@@ -261,3 +261,29 @@ Admin capabilities:
 - Messages page now shows available users ordered from active to inactive, with profile links and user IDs.
 - Messages now support direct chat start with published users (no request/approval step in this phase).
 - Conversations remain in chat-box format with direct message sending inside active conversations.
+
+### 11.7 Navigation, Onboarding, Profile & Notifications (2026-02-27)
+- Authenticated top navigation is icon-based and now includes:
+  - Discover (Earth icon)
+  - Messages (Chat icon)
+  - Profile (Person icon)
+  - Matches (Love icon)
+  - Notifications (Bell icon)
+- Settings route is removed from primary authenticated navigation for this phase.
+- Message badge behavior:
+  - Unread incoming direct messages show as a red count badge above the Messages icon.
+  - A notification sound is played when a new incoming message arrives while outside the messages route.
+- Onboarding updates:
+  - New users are automatically assigned a preset avatar if no custom upload is provided.
+  - Display name and gender remain required.
+  - Preferred genders are selected as multi-choice checkboxes.
+  - Communication languages are selected as checkbox options and stored in `preferences.preferred_languages`.
+- Profile updates:
+  - Profile view now includes avatar, cover photo, name, bio, activity status, and posted moments.
+  - Owners can edit their own profile (name, bio, avatar upload, cover upload, publish toggle).
+  - Owners can set each moment/post visibility to public or private.
+  - Public viewers can only see public moments.
+- User identity/presence UX:
+  - Discover, messaging people list, conversations, and notifications show both avatar and display name.
+  - Active status shows with green dot; inactive users show neutral indicator.
+  - Tapping/clicking a user opens that user’s profile page.

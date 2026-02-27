@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { GENDER_OPTIONS, SEXUAL_PREFERENCE_OPTIONS, SKIN_TONE_OPTIONS } from "@/types/profile";
+import { GENDER_OPTIONS, LANGUAGE_OPTIONS, SEXUAL_PREFERENCE_OPTIONS, SKIN_TONE_OPTIONS } from "@/types/profile";
 import { saveOnboarding } from "./actions";
+
+function titleize(value: string): string {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 export default async function OnboardingPage() {
   const supabase = await createClient();
@@ -26,23 +30,20 @@ export default async function OnboardingPage() {
     );
   }
 
-  const [{ data: profile }, { data: preferences }, { data: avatars }] = await Promise.all([
+  const [{ data: profile }, { data: preferences }] = await Promise.all([
     supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
-    supabase.from("preferences").select("*").eq("user_id", user.id).maybeSingle(),
-    supabase
-      .from("avatar_presets")
-      .select("key,label")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
+    supabase.from("preferences").select("*").eq("user_id", user.id).maybeSingle()
   ]);
+
+  const preferredGenders = new Set<string>(preferences?.preferred_genders ?? []);
+  const preferredLanguages = new Set<string>(preferences?.preferred_languages ?? []);
 
   return (
     <section className="mx-auto max-w-3xl space-y-4">
       <div className="card space-y-2">
         <h1 className="text-2xl font-bold">Profile onboarding</h1>
         <p className="text-sm text-harbor-ink/75">
-          Complete your profile and preferences. Appearance filters are optional and tucked under
-          Preferences.
+          Name and gender are required. New users receive a preset avatar automatically, and you can upload your own photo at any time.
         </p>
       </div>
 
@@ -56,7 +57,7 @@ export default async function OnboardingPage() {
               className="h-16 w-16 rounded-full border border-harbor-ink/10 object-cover"
             />
             <div className="text-xs text-harbor-ink/70">
-              Upload a JPG or PNG image (max 5MB). If none is uploaded, preset avatar is used.
+              Upload a JPG or PNG image (max 5MB). If none is uploaded, your preset avatar stays active.
             </div>
           </div>
           <input className="input file:mr-3 file:rounded-full file:border-0 file:bg-harbor-cream file:px-3 file:py-1 file:text-xs file:font-semibold" name="avatar_file" type="file" accept="image/jpeg,image/png" />
@@ -85,10 +86,10 @@ export default async function OnboardingPage() {
           </div>
           <div className="space-y-1">
             <label className="label">Gender</label>
-            <select className="input" name="gender" defaultValue={profile?.gender ?? "prefer_not_to_say"}>
+            <select className="input" name="gender" defaultValue={profile?.gender ?? "prefer_not_to_say"} required>
               {GENDER_OPTIONS.map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                  {titleize(value)}
                 </option>
               ))}
             </select>
@@ -102,7 +103,7 @@ export default async function OnboardingPage() {
             >
               {SEXUAL_PREFERENCE_OPTIONS.map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                  {titleize(value)}
                 </option>
               ))}
             </select>
@@ -112,7 +113,7 @@ export default async function OnboardingPage() {
             <select className="input" name="skin_tone" defaultValue={profile?.skin_tone ?? "prefer_not_to_say"}>
               {SKIN_TONE_OPTIONS.map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                  {titleize(value)}
                 </option>
               ))}
             </select>
@@ -145,17 +146,6 @@ export default async function OnboardingPage() {
         </div>
 
         <div className="space-y-1">
-          <label className="label">Preset avatar</label>
-          <select className="input" name="avatar_key" defaultValue={profile?.avatar_key ?? avatars?.[0]?.key} required>
-            {(avatars ?? []).map((avatar) => (
-              <option key={avatar.key} value={avatar.key}>
-                {avatar.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-1">
           <label className="label">Bio (optional)</label>
           <textarea className="input min-h-24" name="bio" defaultValue={profile?.bio ?? ""} />
         </div>
@@ -185,16 +175,32 @@ export default async function OnboardingPage() {
               required
             />
           </div>
-          <div className="space-y-1">
-            <label className="label">Preferred genders (comma-separated)</label>
-            <input
-              className="input"
-              name="preferred_genders"
-              defaultValue={preferences?.preferred_genders?.join(", ") ?? ""}
-              placeholder="female, male"
-            />
-          </div>
-          <div className="space-y-1">
+
+          <fieldset className="space-y-2 md:col-span-2">
+            <legend className="label">Preferred genders (multiple choice)</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {GENDER_OPTIONS.map((value) => (
+                <label key={value} className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" name="preferred_genders" value={value} defaultChecked={preferredGenders.has(value)} />
+                  {titleize(value)}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="space-y-2 md:col-span-2">
+            <legend className="label">Communication languages (checkbox)</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {LANGUAGE_OPTIONS.map((value) => (
+                <label key={value} className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" name="preferred_languages" value={value} defaultChecked={preferredLanguages.has(value)} />
+                  {titleize(value)}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <div className="space-y-1 md:col-span-2">
             <label className="label">Preferred nationalities (comma-separated)</label>
             <input
               className="input"

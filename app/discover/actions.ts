@@ -62,6 +62,7 @@ export async function createDiscoverPost(formData: FormData) {
 
   const photoEntry = formData.get("photo");
   const photo = photoEntry instanceof File && photoEntry.size > 0 ? photoEntry : null;
+  const isPublic = formData.get("is_public") === "on";
 
   if (!thought && !photo) {
     errorRedirect("Add a thought, a photo, or both.");
@@ -93,7 +94,8 @@ export async function createDiscoverPost(formData: FormData) {
   const { error: insertError } = await supabase.from("feed_posts").insert({
     user_id: user.id,
     thought,
-    photo_path: photoPath
+    photo_path: photoPath,
+    is_public: isPublic
   });
 
   if (insertError) {

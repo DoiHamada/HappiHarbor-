@@ -149,7 +149,9 @@ async function openDirectConversation(formData: FormData) {
     const message = error instanceof Error ? error.message : "Unable to start chat right now.";
     redirect(urlFor({ error: message }));
   }
+  await supabase.rpc("mark_conversation_read", { p_conversation: conversationId, p_user: user.id });
   revalidatePath(MESSAGES_PATH);
+  revalidatePath("/", "layout");
   redirect(urlFor({ conversation: conversationId }));
 }
 
@@ -194,6 +196,8 @@ export async function sendConversationMessage(formData: FormData) {
     redirect(urlFor({ error: error.message }));
   }
 
+  await supabase.rpc("mark_conversation_read", { p_conversation: conversationId, p_user: user.id });
   revalidatePath(MESSAGES_PATH);
+  revalidatePath("/", "layout");
   redirect(urlFor({ conversation: conversationId }));
 }
