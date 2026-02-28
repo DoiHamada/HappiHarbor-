@@ -171,7 +171,7 @@ export async function updateMomentVisibility(formData: FormData) {
     .eq("user_id", user.id);
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(error.message.includes("is_public") ? "Post visibility controls are temporarily unavailable." : error.message);
   }
 
   const profilePath = `/profile/${profile.public_id}`;

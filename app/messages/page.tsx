@@ -224,6 +224,46 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
 
           <div className="custom-scrollbar flex-1 space-y-6 overflow-y-auto p-4">
             <div className="space-y-2">
+              <h2 className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Conversations</h2>
+              {conversationItems.length === 0 ? (
+                <p className="px-2 text-xs text-slate-500">No conversations yet.</p>
+              ) : (
+                conversationItems.map((conversation) => {
+                  const active = selectedConversationId === conversation.id;
+                  const partnerPublicId = conversation.partnerPublicId ?? fallbackPublicId(conversation.partnerId);
+                  const partnerActive = isRecentlyActive(conversation.partnerLastActiveAt);
+
+                  return (
+                    <Link
+                      key={conversation.id}
+                      href={`/messages?conversation=${conversation.id}`}
+                      className={`block rounded-2xl border p-3 no-underline ${
+                        active
+                          ? "border-[#ee9d2b]/40 bg-[#fff8ef]"
+                          : "border-slate-100 bg-white hover:border-slate-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={conversation.partnerAvatarUrl ?? "/logo-mark.svg"}
+                          alt={`${conversation.partnerName} avatar`}
+                          className="h-10 w-10 rounded-full border border-slate-200 object-cover"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">{conversation.partnerName}</p>
+                          <p className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
+                            <span className={`inline-block size-2 rounded-full ${partnerActive ? "bg-emerald-500" : "bg-slate-300"}`} />
+                            {partnerPublicId} · {conversation.source === "match" ? "Match" : "Direct"}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="space-y-2">
               <h2 className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">People</h2>
               {discoverPeople.length === 0 ? (
                 <p className="px-2 text-xs text-slate-500">No users available.</p>

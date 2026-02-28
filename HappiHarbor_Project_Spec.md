@@ -341,3 +341,25 @@ Admin capabilities:
   - Discover, messaging people list, conversations, and notifications show both avatar and display name.
   - Active status shows with green dot; inactive users show neutral indicator.
   - Tapping/clicking a user opens that user’s profile page.
+
+### 11.8 Navigation, Discover, Profile & Messaging Fixes (2026-02-28)
+- Navigation update:
+  - Replaced the top-nav search icon with the new asset-based icon (`/public/nav-search-icon.svg`) for design-system alignment.
+- Discover feed cleanup:
+  - Removed in-feed "Find users" button from the Discover header card.
+  - Removed the "Search users" form (placeholder + submit button) from Discover.
+  - Search is now centralized through top navigation and `/search`.
+- Discover feed DB compatibility:
+  - Added migration `20260228235500_ensure_feed_posts_is_public.sql` to guarantee `feed_posts.is_public` exists and is indexed.
+  - Added runtime fallback logic for older schemas so Discover/profile feeds still load when `is_public` is temporarily unavailable.
+- Profile standardization:
+  - Introduced reusable `ProfileCard` component with avatar, display name, public user ID, and action slot.
+  - Profile page now uses `ProfileCard` and shows an "Add Friend" action for non-owner profile views.
+- Unified profile posts rendering:
+  - Profile post rendering now loads a chronological timeline (newest first) for both owner and peer profile views.
+  - Visibility behavior remains permission-based:
+    - Owner sees all own posts.
+    - Non-owner sees posts allowed by privacy/RLS.
+- Messaging page conversation visibility fix:
+  - Added explicit "Conversations" list section to the left sidebar.
+  - Existing conversations are now rendered with avatar, display name, user ID, status, and quick-open links.

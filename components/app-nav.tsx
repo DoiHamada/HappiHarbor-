@@ -45,12 +45,12 @@ function MessagesIcon({ active }: { active: boolean }) {
 
 function SearchIcon({ active }: { active: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" className={`h-5 w-5 ${iconClass(active)}`} aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M10.5 3a7.5 7.5 0 1 1 4.79 13.27l4.22 4.22-1.41 1.41-4.22-4.22A7.5 7.5 0 0 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"
-      />
-    </svg>
+    <img
+      src="/nav-search-icon.svg"
+      alt=""
+      aria-hidden="true"
+      className={`h-5 w-5 transition-opacity ${active ? "opacity-100" : "opacity-70"}`}
+    />
   );
 }
 

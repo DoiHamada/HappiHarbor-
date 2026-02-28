@@ -1,7 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { addDiscoverComment, reactToDiscoverPost } from "@/app/discover/actions";
+import { openDirectChat } from "@/app/messages/actions";
 import { deleteOwnMoment, updateMomentVisibility, updateOwnProfile } from "@/app/profile/actions";
+import { ProfileCard } from "@/components/profile-card";
 
 type ProfilePageProps = {
   params: Promise<{ publicId: string }>;
@@ -28,7 +30,7 @@ type FeedRow = {
   thought: string | null;
   photo_path: string | null;
   created_at: string;
-  is_public: boolean;
+  is_public?: boolean | null;
 };
 
 type ReactionRow = {
@@ -105,20 +107,30 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
     .update({ last_active_at: new Date().toISOString() })
     .eq("user_id", user.id);
 
-  let postsQuery = supabase
+  let postsWithVisibilityQuery = supabase
     .from("feed_posts")
     .select("id,thought,photo_path,created_at,is_public")
     .eq("user_id", typedProfile.user_id)
     .order("created_at", { ascending: false })
-    .limit(20);
+    .limit(100);
 
   if (!isOwner) {
-    postsQuery = postsQuery.eq("is_public", true);
+    postsWithVisibilityQuery = postsWithVisibilityQuery.eq("is_public", true);
   }
 
-  const { data: posts } = await postsQuery;
+  const { data: postsWithVisibility, error: postsWithVisibilityError } = await postsWithVisibilityQuery;
 
-  const typedPosts = (posts ?? []) as FeedRow[];
+  const { data: postsWithoutVisibility } = postsWithVisibilityError
+    ? await supabase
+        .from("feed_posts")
+        .select("id,thought,photo_path,created_at")
+        .eq("user_id", typedProfile.user_id)
+        .order("created_at", { ascending: false })
+        .limit(100)
+    : { data: null };
+
+  const supportsPostVisibility = !postsWithVisibilityError;
+  const typedPosts = ((postsWithVisibility ?? postsWithoutVisibility ?? []) as FeedRow[]);
   const postIds = typedPosts.map((post) => post.id);
 
   const [{ data: reactionRows }, { data: commentRows }] = await Promise.all([
@@ -176,24 +188,30 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
     <section className="space-y-4">
       {info && <div className="card text-sm text-green-700">{info}</div>}
 
-      <div className="overflow-hidden rounded-xl2 border border-harbor-ink/10 bg-white">
-        <div className="h-44 w-full bg-gradient-to-r from-[#f3d2a4] via-[#f9e8cb] to-[#d9edf7]">
-          {typedProfile.cover_photo_url ? (
-            <img src={typedProfile.cover_photo_url} alt={`${typedProfile.display_name} cover`} className="h-full w-full object-cover" />
-          ) : null}
-        </div>
-        <div className="relative px-5 pb-5">
-          <img
-            src={typedProfile.avatar_url ?? "/logo-mark.svg"}
-            alt={`${typedProfile.display_name} avatar`}
-            className="-mt-12 h-24 w-24 rounded-full border-4 border-white object-cover"
-          />
-          <div className="mt-3 space-y-2">
-            <h1 className="text-2xl font-bold">{typedProfile.display_name}</h1>
-            <p className="flex items-center gap-2 text-sm text-harbor-ink/75">
-              <span className={`inline-block size-2 rounded-full ${active ? "bg-emerald-500" : "bg-slate-300"}`} />
-              {typedProfile.public_id} · {active ? "Active now" : "Inactive"}
-            </p>
+      <div className="space-y-3">
+        <ProfileCard
+          avatarUrl={typedProfile.avatar_url}
+          displayName={typedProfile.display_name}
+          publicId={typedProfile.public_id}
+          isActive={active}
+          action={
+            !isOwner ? (
+              <form action={openDirectChat}>
+                <input type="hidden" name="target_user_id" value={typedProfile.user_id} />
+                <button className="btn" type="submit">
+                  Add Friend
+                </button>
+              </form>
+            ) : null
+          }
+        />
+        <div className="overflow-hidden rounded-xl2 border border-harbor-ink/10 bg-white">
+          <div className="h-44 w-full bg-gradient-to-r from-[#f3d2a4] via-[#f9e8cb] to-[#d9edf7]">
+            {typedProfile.cover_photo_url ? (
+              <img src={typedProfile.cover_photo_url} alt={`${typedProfile.display_name} cover`} className="h-full w-full object-cover" />
+            ) : null}
+          </div>
+          <div className="space-y-2 p-5">
             <p className="text-sm text-harbor-ink/75">
               {typedProfile.age_years} years old · {typedProfile.nationality}
             </p>
@@ -245,9 +263,10 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
       ) : null}
 
       <div className="card space-y-2">
-        <h2 className="text-lg font-semibold">Moments</h2>
+        <h2 className="text-lg font-semibold">Posts</h2>
+        <p className="text-xs text-harbor-ink/65">Ordered by newest first.</p>
         {typedPosts.length === 0 ? (
-          <p className="text-sm text-harbor-ink/75">No moments posted yet.</p>
+          <p className="text-sm text-harbor-ink/75">No posts yet.</p>
         ) : (
           <div className="grid gap-3">
             {typedPosts.map((post) => {
@@ -262,7 +281,7 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
                         timeStyle: "short"
                       })}
                     </p>
-                    {isOwner ? (
+                    {isOwner && supportsPostVisibility ? (
                       <div className="flex items-center gap-2">
                         <form action={updateMomentVisibility}>
                           <input type="hidden" name="post_id" value={post.id} />
@@ -281,7 +300,7 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
                     ) : null}
                   </div>
 
-                  {isOwner ? (
+                  {isOwner && supportsPostVisibility ? (
                     <p className="mt-2 text-xs text-harbor-ink/60">Visibility: {post.is_public ? "Public" : "Private"}</p>
                   ) : null}
 

@@ -130,12 +130,26 @@ export async function createDiscoverPost(formData: FormData) {
     }
   }
 
-  const { error: insertError } = await supabase.from("feed_posts").insert({
+  const { error: insertWithVisibilityError } = await supabase.from("feed_posts").insert({
     user_id: user.id,
     thought,
     photo_path: photoPath,
     is_public: isPublic
   });
+
+  const shouldRetryWithoutVisibility = Boolean(
+    insertWithVisibilityError?.message?.toLowerCase().includes("is_public")
+  );
+
+  const insertError = shouldRetryWithoutVisibility
+    ? (
+        await supabase.from("feed_posts").insert({
+          user_id: user.id,
+          thought,
+          photo_path: photoPath
+        })
+      ).error
+    : insertWithVisibilityError;
 
   if (insertError) {
     if (photoPath) {
@@ -256,7 +270,7 @@ export async function updateDiscoverPostVisibility(formData: FormData) {
 
   const { error } = await supabase.from("feed_posts").update({ is_public: makePublic }).eq("id", postId).eq("user_id", user.id);
   if (error) {
-    errorRedirect(error.message);
+    errorRedirect(error.message.includes("is_public") ? "Post visibility controls are temporarily unavailable." : error.message);
   }
 
   revalidatePath("/discover");

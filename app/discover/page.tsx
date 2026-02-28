@@ -18,7 +18,7 @@ type DiscoverPostRow = {
   user_id: string;
   thought: string | null;
   photo_path: string | null;
-  is_public: boolean;
+  is_public?: boolean | null;
   created_at: string;
   profiles: {
     user_id: string;
@@ -71,7 +71,6 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
   const params = (await searchParams) ?? {};
   const errorParam = typeof params.error === "string" ? params.error : null;
   const posted = params.posted === "1";
-  const query = typeof params.q === "string" ? params.q.trim() : "";
 
   const supabase = await createClient();
   const {
@@ -115,38 +114,26 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
     .update({ last_active_at: new Date().toISOString() })
     .eq("user_id", user.id);
 
-  const { data: postsWithPresence, error: postsPresenceError } = await supabase
+  const { data: postsWithVisibility, error: postsVisibilityError } = await supabase
     .from("feed_posts")
     .select("id,user_id,thought,photo_path,is_public,created_at,profiles(user_id,public_id,display_name,avatar_url,last_active_at)")
     .order("created_at", { ascending: false })
     .limit(80);
 
-  const { data: postsFallback, error: postsFallbackError } = postsPresenceError
-      ? await supabase
+  const { data: postsWithoutVisibility, error: postsWithoutVisibilityError } = postsVisibilityError
+    ? await supabase
         .from("feed_posts")
-        .select("id,user_id,thought,photo_path,is_public,created_at,profiles(user_id,display_name,avatar_url)")
+        .select("id,user_id,thought,photo_path,created_at,profiles(user_id,public_id,display_name,avatar_url,last_active_at)")
         .order("created_at", { ascending: false })
         .limit(80)
     : { data: null, error: null };
 
-  const allPosts = ((postsWithPresence ?? postsFallback ?? []) as unknown as DiscoverPostRow[]);
-  const postsError = postsPresenceError ?? postsFallbackError;
-
-  const filteredPosts = query
-    ? allPosts.filter((post) => {
-        const profile = post.profiles;
-        if (!profile) return false;
-        const normalized = query.toLowerCase();
-        return (
-          profile.display_name.toLowerCase().includes(normalized) ||
-          (profile.public_id ?? fallbackPublicId(profile.user_id)).toLowerCase().includes(normalized)
-        );
-      })
-    : allPosts;
-
-  const paths = filteredPosts.map((post) => post.photo_path).filter((value): value is string => Boolean(value));
+  const allPosts = ((postsWithVisibility ?? postsWithoutVisibility ?? []) as unknown as DiscoverPostRow[]);
+  const canManagePostVisibility = !postsVisibilityError;
+  const postsError = postsVisibilityError ?? postsWithoutVisibilityError;
+  const paths = allPosts.map((post) => post.photo_path).filter((value): value is string => Boolean(value));
   const photoUrlByPath = new Map<string, string>();
-  const postIds = filteredPosts.map((post) => post.id);
+  const postIds = allPosts.map((post) => post.id);
 
   const [{ data: reactionRows }, { data: commentRows }] = await Promise.all([
     postIds.length
@@ -197,41 +184,18 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
   return (
     <section className="space-y-4">
       <div className="card space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <img
-              src={me.avatar_url ?? "/logo-mark.svg"}
-              alt="Your avatar"
-              className="h-12 w-12 rounded-full border border-harbor-ink/10 object-cover"
-            />
-            <div>
-              <p className="text-sm font-semibold">{me.display_name}</p>
-              <p className="text-xs text-harbor-ink/70">ID: {me.public_id ?? fallbackPublicId(user.id)}</p>
-            </div>
+        <div className="flex items-center gap-3">
+          <img
+            src={me.avatar_url ?? "/logo-mark.svg"}
+            alt="Your avatar"
+            className="h-12 w-12 rounded-full border border-harbor-ink/10 object-cover"
+          />
+          <div>
+            <p className="text-sm font-semibold">{me.display_name}</p>
+            <p className="text-xs text-harbor-ink/70">ID: {me.public_id ?? fallbackPublicId(user.id)}</p>
           </div>
-          <Link href="/search" className="btn-secondary no-underline">
-            Find users
-          </Link>
         </div>
       </div>
-
-      <form className="card" method="get">
-        <label className="label" htmlFor="q">
-          Search users
-        </label>
-        <div className="flex gap-2">
-          <input
-            id="q"
-            name="q"
-            defaultValue={query}
-            placeholder="Search by name or user ID"
-            className="input"
-          />
-          <button className="btn-secondary" type="submit">
-            Search
-          </button>
-        </div>
-      </form>
 
       <form action={createDiscoverPost} className="card space-y-3">
         <label className="label" htmlFor="thought">
@@ -267,11 +231,11 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
       {posted && <div className="card text-sm text-green-700">Your post is live.</div>}
       {postsError && <div className="card text-sm text-red-600">Failed to load discover posts: {postsError.message}</div>}
 
-      {filteredPosts.length === 0 ? (
-        <div className="card text-sm text-harbor-ink/75">No posts match this search yet.</div>
+      {allPosts.length === 0 ? (
+        <div className="card text-sm text-harbor-ink/75">No posts yet.</div>
       ) : (
         <div className="grid gap-3">
-          {filteredPosts.map((post) => {
+          {allPosts.map((post) => {
             const photoUrl = post.photo_path ? photoUrlByPath.get(post.photo_path) : null;
             const profile = post.profiles;
             const authorName = profile?.display_name ?? "Member";
@@ -320,7 +284,7 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
                   <img src={photoUrl} alt={`${authorName} moment photo`} className="w-full rounded-xl border border-harbor-ink/10 object-cover" />
                 )}
 
-                {post.user_id === user.id ? (
+                {post.user_id === user.id && canManagePostVisibility ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <form action={updateDiscoverPostVisibility}>
                       <input type="hidden" name="post_id" value={post.id} />
