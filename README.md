@@ -42,6 +42,8 @@ npm run dev
 - Redirect URL includes:
   - `http://localhost:3000/auth/confirm`
   - `http://localhost:3000/auth/reset-password`
+- Recovery email template should link with token hash (works across browsers/devices):
+  - `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=%2Fauth%2Freset-password`
 
 ## 5) First admin
 Assign admin claim in `auth.users.raw_app_meta_data`:

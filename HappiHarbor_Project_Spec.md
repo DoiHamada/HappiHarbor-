@@ -363,3 +363,25 @@ Admin capabilities:
 - Messaging page conversation visibility fix:
   - Added explicit "Conversations" list section to the left sidebar.
   - Existing conversations are now rendered with avatar, display name, user ID, status, and quick-open links.
+
+### 11.9 Profile, Friend Workflow & Discover Safety Updates (2026-03-01)
+- Profile header redesign:
+  - Profile page now renders a cover-first header with the circular avatar centered in the middle of the cover image.
+  - Profile identity and social actions are grouped directly under the centered avatar.
+- Friendship workflow:
+  - Added `Add Friend` request flow backed by `matches.status = pending`.
+  - Added recipient acceptance flow that transitions pending requests to `matches.status = mutual`.
+  - Added owner-facing "Friend Requests" section on profile for accepting incoming requests.
+  - Added DB RPC functions:
+    - `request_friend(...)`
+    - `accept_friend_request(...)`
+- Friends-first Discover ranking:
+  - Discover feed now prioritizes posts from confirmed friends (`matches.status = mutual`) ahead of non-friend posts.
+  - Within each priority group, posts remain newest-first.
+- Discover post safety actions:
+  - Moved owner post-management actions into a top-right triple-dot menu on each post card.
+  - Visibility toggle and delete now require opening the action menu first, adding an intentional safety buffer before destructive actions.
+- Unified posting interface:
+  - Thought + photo posting remains in one combined composer card.
+  - Replaced default file input UX with an icon-based "Add Photo" control.
+  - Primary post CTA renamed from "Post to Discover" to "Share".

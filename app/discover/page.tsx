@@ -57,6 +57,11 @@ type CommentRow = {
   } | null;
 };
 
+type MatchLite = {
+  user_a: string;
+  user_b: string;
+};
+
 function fallbackPublicId(userId: string): string {
   return `HH-${userId.replaceAll("-", "").slice(0, 12).toUpperCase()}`;
 }
@@ -119,14 +124,14 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
     .from("feed_posts")
     .select("id,user_id,thought,photo_path,is_public,created_at")
     .order("created_at", { ascending: false })
-    .limit(80);
+    .limit(160);
 
   const { data: postsWithoutVisibility, error: postsWithoutVisibilityError } = postsVisibilityError
     ? await supabase
         .from("feed_posts")
         .select("id,user_id,thought,photo_path,created_at")
         .order("created_at", { ascending: false })
-        .limit(80)
+        .limit(160)
     : { data: null, error: null };
 
   const rawPosts = ((postsWithVisibility ?? postsWithoutVisibility ?? []) as unknown as DiscoverPostRow[]);
@@ -153,6 +158,25 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
     ...post,
     profiles: profilesById.get(post.user_id) ?? null
   }));
+
+  const { data: mutualMatches } = await supabase
+    .from("matches")
+    .select("user_a,user_b")
+    .eq("status", "mutual")
+    .or(`user_a.eq.${user.id},user_b.eq.${user.id}`);
+
+  const friendIds = new Set<string>([user.id]);
+  ((mutualMatches ?? []) as MatchLite[]).forEach((row) => {
+    friendIds.add(row.user_a === user.id ? row.user_b : row.user_a);
+  });
+
+  const prioritizedPosts = [...allPosts].sort((a, b) => {
+    const aPriority = friendIds.has(a.user_id) ? 0 : 1;
+    const bPriority = friendIds.has(b.user_id) ? 0 : 1;
+    if (aPriority !== bPriority) return aPriority - bPriority;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+
   const canManagePostVisibility = !postsVisibilityError;
   const postsError =
     postsVisibilityError ?? postsWithoutVisibilityError ?? postProfilesPresenceError ?? postProfilesFallbackError;
@@ -223,23 +247,29 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
       </div>
 
       <form action={createDiscoverPost} className="card space-y-3">
-        <label className="label" htmlFor="thought">
-          Share your thoughts
-        </label>
         <textarea
           id="thought"
           name="thought"
           className="input min-h-28"
           maxLength={1000}
-          placeholder="What are you thinking today?"
+          placeholder="Share your thoughts or a moment..."
         />
 
-        <div className="space-y-1">
-          <label className="label" htmlFor="photo">
-            Add a moment photo (optional)
+        <div className="flex items-center justify-between gap-3">
+          <input id="photo" name="photo" className="hidden" type="file" accept="image/jpeg,image/png,image/webp" />
+          <label
+            htmlFor="photo"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-harbor-ink/15 bg-white px-3 py-2 text-xs font-semibold text-harbor-ink/80"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm6 4.2a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4Zm-5.8 9.6h11.6l-3.3-4.1a1 1 0 0 0-1.55 0l-1.7 2.1-1.1-1.4a1 1 0 0 0-1.58 0L6.2 17.8Z"
+              />
+            </svg>
+            Add Photo
           </label>
-          <input id="photo" name="photo" className="input" type="file" accept="image/jpeg,image/png,image/webp" />
-          <p className="text-xs text-harbor-ink/70">Max 5MB. JPG, PNG, or WEBP.</p>
+          <p className="text-xs text-harbor-ink/70">Max 5MB · JPG/PNG/WEBP</p>
         </div>
 
         <label className="flex items-center gap-2 text-sm text-harbor-ink/75">
@@ -248,7 +278,7 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
         </label>
 
         <button className="btn" type="submit">
-          Post to Discover
+          Share
         </button>
       </form>
 
@@ -256,11 +286,11 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
       {posted && <div className="card text-sm text-green-700">Your post is live.</div>}
       {postsError && <div className="card text-sm text-red-600">Failed to load discover posts: {postsError.message}</div>}
 
-      {allPosts.length === 0 ? (
+      {prioritizedPosts.length === 0 ? (
         <div className="card text-sm text-harbor-ink/75">No posts yet.</div>
       ) : (
         <div className="grid gap-3">
-          {allPosts.map((post) => {
+          {prioritizedPosts.map((post) => {
             const photoUrl = post.photo_path ? photoUrlByPath.get(post.photo_path) : null;
             const profile = post.profiles;
             const authorName = profile?.display_name ?? "Member";
@@ -295,12 +325,36 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
                       </div>
                     </div>
                   </div>
-                  <p className="text-xs text-harbor-ink/70">
-                    {new Date(post.created_at).toLocaleString("en-US", {
-                      dateStyle: "medium",
-                      timeStyle: "short"
-                    })}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-harbor-ink/70">
+                      {new Date(post.created_at).toLocaleString("en-US", {
+                        dateStyle: "medium",
+                        timeStyle: "short"
+                      })}
+                    </p>
+                    {post.user_id === user.id && canManagePostVisibility ? (
+                      <details className="relative">
+                        <summary className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-harbor-ink/10 text-sm text-harbor-ink/70">
+                          ...
+                        </summary>
+                        <div className="absolute right-0 z-10 mt-2 min-w-40 rounded-xl border border-harbor-ink/10 bg-white p-2 shadow-lg">
+                          <form action={updateDiscoverPostVisibility}>
+                            <input type="hidden" name="post_id" value={post.id} />
+                            <input type="hidden" name="make_public" value={post.is_public ? "0" : "1"} />
+                            <button className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-[#f8f4ef]" type="submit">
+                              {post.is_public ? "Private" : "Public"}
+                            </button>
+                          </form>
+                          <form action={deleteDiscoverPost}>
+                            <input type="hidden" name="post_id" value={post.id} />
+                            <button className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-50" type="submit">
+                              Delete
+                            </button>
+                          </form>
+                        </div>
+                      </details>
+                    ) : null}
+                  </div>
                 </div>
 
                 {post.thought && <p className="text-sm whitespace-pre-wrap">{post.thought}</p>}
@@ -308,25 +362,6 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
                 {photoUrl && (
                   <img src={photoUrl} alt={`${authorName} moment photo`} className="w-full rounded-xl border border-harbor-ink/10 object-cover" />
                 )}
-
-                {post.user_id === user.id && canManagePostVisibility ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <form action={updateDiscoverPostVisibility}>
-                      <input type="hidden" name="post_id" value={post.id} />
-                      <input type="hidden" name="make_public" value={post.is_public ? "0" : "1"} />
-                      <button className="btn-secondary px-3 py-1 text-xs" type="submit">
-                        {post.is_public ? "Only friends" : "Public"}
-                      </button>
-                    </form>
-                    <form action={deleteDiscoverPost}>
-                      <input type="hidden" name="post_id" value={post.id} />
-                      <button className="rounded-full border border-red-200 px-3 py-1 text-xs font-semibold text-red-600" type="submit">
-                        Delete
-                      </button>
-                    </form>
-                    <span className="text-xs text-harbor-ink/60">Visibility: {post.is_public ? "Public" : "Only friends"}</span>
-                  </div>
-                ) : null}
 
                 <div className="flex flex-wrap gap-2">
                   {["❤️", "👍", "🔥", "😂"].map((emoji) => {

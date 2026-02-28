@@ -16,6 +16,12 @@ function getImageExtension(file: File): string {
   return byName && /^[a-z0-9]+$/.test(byName) ? byName : "jpg";
 }
 
+function profilePathFromForm(formData: FormData, fallbackPublicId: string): string {
+  const requested = String(formData.get("return_path") ?? "").trim();
+  if (requested.startsWith("/profile/")) return requested;
+  return `/profile/${fallbackPublicId}`;
+}
+
 async function requireUserAndProfile() {
   const supabase = await createClient();
   const {
@@ -37,6 +43,64 @@ async function requireUserAndProfile() {
   }
 
   return { supabase, user, profile };
+}
+
+export async function sendFriendRequest(formData: FormData) {
+  const { supabase, user, profile } = await requireUserAndProfile();
+  const targetUserId = String(formData.get("target_user_id") ?? "").trim();
+  const path = profilePathFromForm(formData, profile.public_id);
+
+  if (!targetUserId || targetUserId === user.id) {
+    redirect(`${path}?info=${encodeURIComponent("Choose a valid user.")}`);
+  }
+
+  const { data, error } = await supabase.rpc("request_friend", {
+    p_target: targetUserId,
+    p_user: user.id
+  });
+
+  if (error) {
+    redirect(`${path}?info=${encodeURIComponent(error.message)}`);
+  }
+
+  const status = String(data ?? "");
+  const info =
+    status === "accepted"
+      ? "Friend request accepted."
+      : status === "already_friends"
+        ? "You are already friends."
+        : status === "already_requested"
+          ? "Friend request already sent."
+          : "Friend request sent.";
+
+  revalidatePath(path);
+  revalidatePath("/discover");
+  redirect(`${path}?info=${encodeURIComponent(info)}`);
+}
+
+export async function acceptFriendRequest(formData: FormData) {
+  const { supabase, profile } = await requireUserAndProfile();
+  const requestId = String(formData.get("request_id") ?? "").trim();
+  const path = profilePathFromForm(formData, profile.public_id);
+
+  if (!requestId) {
+    redirect(`${path}?info=${encodeURIComponent("Request not found.")}`);
+  }
+
+  const { data, error } = await supabase.rpc("accept_friend_request", {
+    p_match: requestId
+  });
+
+  if (error) {
+    redirect(`${path}?info=${encodeURIComponent(error.message)}`);
+  }
+
+  const status = String(data ?? "");
+  const info = status === "accepted" ? "Friend request accepted." : "Request updated.";
+
+  revalidatePath(path);
+  revalidatePath("/discover");
+  redirect(`${path}?info=${encodeURIComponent(info)}`);
 }
 
 export async function updateOwnProfile(formData: FormData) {

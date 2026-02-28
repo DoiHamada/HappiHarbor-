@@ -1,9 +1,15 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { addDiscoverComment, reactToDiscoverPost } from "@/app/discover/actions";
 import { openDirectChat } from "@/app/messages/actions";
-import { deleteOwnMoment, updateMomentVisibility, updateOwnProfile } from "@/app/profile/actions";
-import { ProfileCard } from "@/components/profile-card";
+import {
+  acceptFriendRequest,
+  deleteOwnMoment,
+  sendFriendRequest,
+  updateMomentVisibility,
+  updateOwnProfile
+} from "@/app/profile/actions";
 
 type ProfilePageProps = {
   params: Promise<{ publicId: string }>;
@@ -52,11 +58,30 @@ type CommentRow = {
   } | null;
 };
 
+type MatchRow = {
+  id: string;
+  user_a: string;
+  user_b: string;
+  status: "pending" | "mutual" | "closed";
+  created_by: string | null;
+};
+
+type RequestProfile = {
+  user_id: string;
+  public_id: string | null;
+  display_name: string;
+  avatar_url: string | null;
+};
+
 function isRecentlyActive(lastActiveAt: string | null | undefined): boolean {
   if (!lastActiveAt) return false;
   const ts = new Date(lastActiveAt).getTime();
   if (Number.isNaN(ts)) return false;
   return Date.now() - ts <= 5 * 60 * 1000;
+}
+
+function fallbackPublicId(userId: string): string {
+  return `HH-${userId.replaceAll("-", "").slice(0, 12).toUpperCase()}`;
 }
 
 export default async function PublicProfilePage({ params, searchParams }: ProfilePageProps) {
@@ -88,10 +113,23 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
   }
 
   const isOwner = typedProfile.user_id === user.id;
+  const pairUserA = user.id < typedProfile.user_id ? user.id : typedProfile.user_id;
+  const pairUserB = user.id < typedProfile.user_id ? typedProfile.user_id : user.id;
 
   if (!isOwner && !typedProfile.is_published) {
     notFound();
   }
+
+  const { data: relationship } = !isOwner
+    ? await supabase
+        .from("matches")
+        .select("id,user_a,user_b,status,created_by")
+        .eq("user_a", pairUserA)
+        .eq("user_b", pairUserB)
+        .maybeSingle()
+    : { data: null };
+
+  const typedRelationship = (relationship ?? null) as MatchRow | null;
 
   if (!isOwner) {
     await supabase.from("social_notifications").insert({
@@ -183,43 +221,105 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
   }
 
   const active = isRecentlyActive(typedProfile.last_active_at);
+  const incomingRequests = isOwner
+    ? (
+        await supabase
+          .from("matches")
+          .select("id,user_a,user_b,status,created_by")
+          .eq("status", "pending")
+          .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
+          .neq("created_by", user.id)
+          .order("created_at", { ascending: false })
+          .limit(20)
+      ).data ?? []
+    : [];
+
+  const typedIncomingRequests = incomingRequests as MatchRow[];
+  const incomingRequesterIds = Array.from(
+    new Set(
+      typedIncomingRequests
+        .map((row) => row.created_by)
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+
+  const { data: incomingRequesterProfiles } = incomingRequesterIds.length
+    ? await supabase
+        .from("profiles")
+        .select("user_id,public_id,display_name,avatar_url")
+        .in("user_id", incomingRequesterIds)
+    : { data: [] };
+
+  const requestProfilesById = new Map<string, RequestProfile>(
+    ((incomingRequesterProfiles ?? []) as RequestProfile[]).map((row) => [row.user_id, row])
+  );
 
   return (
     <section className="space-y-4">
       {info && <div className="card text-sm text-green-700">{info}</div>}
 
-      <div className="space-y-3">
-        <ProfileCard
-          avatarUrl={typedProfile.avatar_url}
-          displayName={typedProfile.display_name}
-          publicId={typedProfile.public_id}
-          isActive={active}
-          action={
-            !isOwner ? (
+      <div className="overflow-hidden rounded-xl2 border border-harbor-ink/10 bg-white">
+        <div className="relative h-56 w-full bg-gradient-to-r from-[#f3d2a4] via-[#f9e8cb] to-[#d9edf7]">
+          {typedProfile.cover_photo_url ? (
+            <img src={typedProfile.cover_photo_url} alt={`${typedProfile.display_name} cover`} className="h-full w-full object-cover" />
+          ) : null}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white bg-white p-1 shadow-lg">
+            <img
+              src={typedProfile.avatar_url ?? "/logo-mark.svg"}
+              alt={`${typedProfile.display_name} avatar`}
+              className="h-24 w-24 rounded-full object-cover"
+            />
+          </div>
+        </div>
+        <div className="space-y-3 px-5 pb-5 pt-14 text-center">
+          <h1 className="text-2xl font-bold">{typedProfile.display_name}</h1>
+          <p className="flex items-center justify-center gap-2 text-sm text-harbor-ink/75">
+            <span className={`inline-block size-2 rounded-full ${active ? "bg-emerald-500" : "bg-slate-300"}`} />
+            {typedProfile.public_id} · {active ? "Active now" : "Inactive"}
+          </p>
+          <p className="text-sm text-harbor-ink/75">
+            {typedProfile.age_years} years old · {typedProfile.nationality}
+          </p>
+          <p className="text-xs text-harbor-ink/70">
+            {typedProfile.gender} · {typedProfile.sexual_preference}
+          </p>
+          {typedProfile.bio && <p className="mx-auto max-w-2xl text-sm whitespace-pre-wrap">{typedProfile.bio}</p>}
+
+          {!isOwner ? (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {!typedRelationship || typedRelationship.status === "closed" ? (
+                <form action={sendFriendRequest}>
+                  <input type="hidden" name="target_user_id" value={typedProfile.user_id} />
+                  <input type="hidden" name="return_path" value={`/profile/${typedProfile.public_id}`} />
+                  <button className="btn" type="submit">
+                    Add Friend
+                  </button>
+                </form>
+              ) : typedRelationship.status === "pending" && typedRelationship.created_by !== user.id ? (
+                <form action={acceptFriendRequest}>
+                  <input type="hidden" name="request_id" value={typedRelationship.id} />
+                  <input type="hidden" name="return_path" value={`/profile/${typedProfile.public_id}`} />
+                  <button className="btn" type="submit">
+                    Accept Request
+                  </button>
+                </form>
+              ) : typedRelationship.status === "pending" ? (
+                <button className="btn-secondary" type="button" disabled>
+                  Requested
+                </button>
+              ) : (
+                <button className="btn-secondary" type="button" disabled>
+                  Friends
+                </button>
+              )}
               <form action={openDirectChat}>
                 <input type="hidden" name="target_user_id" value={typedProfile.user_id} />
-                <button className="btn" type="submit">
-                  Add Friend
+                <button className="btn-secondary" type="submit">
+                  Message
                 </button>
               </form>
-            ) : null
-          }
-        />
-        <div className="overflow-hidden rounded-xl2 border border-harbor-ink/10 bg-white">
-          <div className="h-44 w-full bg-gradient-to-r from-[#f3d2a4] via-[#f9e8cb] to-[#d9edf7]">
-            {typedProfile.cover_photo_url ? (
-              <img src={typedProfile.cover_photo_url} alt={`${typedProfile.display_name} cover`} className="h-full w-full object-cover" />
-            ) : null}
-          </div>
-          <div className="space-y-2 p-5">
-            <p className="text-sm text-harbor-ink/75">
-              {typedProfile.age_years} years old · {typedProfile.nationality}
-            </p>
-            <p className="text-xs text-harbor-ink/70">
-              {typedProfile.gender} · {typedProfile.sexual_preference}
-            </p>
-            {typedProfile.bio && <p className="text-sm whitespace-pre-wrap">{typedProfile.bio}</p>}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -260,6 +360,51 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
             Save profile changes
           </button>
         </form>
+      ) : null}
+
+      {isOwner ? (
+        <div className="card space-y-3">
+          <h2 className="text-lg font-semibold">Friend Requests</h2>
+          {typedIncomingRequests.length === 0 ? (
+            <p className="text-sm text-harbor-ink/75">No pending requests.</p>
+          ) : (
+            <div className="grid gap-3">
+              {typedIncomingRequests.map((request) => {
+                const requesterId = request.created_by;
+                if (!requesterId) return null;
+                const requester = requestProfilesById.get(requesterId);
+                const requesterPublicId = requester?.public_id ?? fallbackPublicId(requesterId);
+                return (
+                  <article key={request.id} className="flex items-center justify-between rounded-xl border border-harbor-ink/10 p-3">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={requester?.avatar_url ?? "/logo-mark.svg"}
+                        alt={`${requester?.display_name ?? "Member"} avatar`}
+                        className="h-10 w-10 rounded-full border border-harbor-ink/10 object-cover"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold">{requester?.display_name ?? "Member"}</p>
+                        <p className="text-xs text-harbor-ink/70">{requesterPublicId}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link href={`/profile/${requesterPublicId}`} className="btn-secondary px-3 py-1.5 text-xs no-underline">
+                        View
+                      </Link>
+                      <form action={acceptFriendRequest}>
+                        <input type="hidden" name="request_id" value={request.id} />
+                        <input type="hidden" name="return_path" value={`/profile/${typedProfile.public_id}`} />
+                        <button className="btn px-3 py-1.5 text-xs" type="submit">
+                          Accept
+                        </button>
+                      </form>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
       ) : null}
 
       <div className="card space-y-2">

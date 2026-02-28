@@ -14,6 +14,7 @@ export default function ResetPasswordPage() {
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
   const code = searchParams.get("code");
+  const errorParam = searchParams.get("error");
 
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -24,6 +25,27 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     async function initializeRecoverySession() {
       setMessage(null);
+
+      if (errorParam) {
+        setMessage(errorParam);
+        return;
+      }
+
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        });
+        if (error) {
+          setMessage(error.message);
+          return;
+        }
+        setReady(true);
+        return;
+      }
 
       if (tokenHash && type) {
         const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
@@ -38,7 +60,13 @@ export default function ResetPasswordPage() {
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
-          setMessage(error.message);
+          if (error.message.toLowerCase().includes("pkce code verifier")) {
+            setMessage(
+              "This reset link was opened in a different browser/device and cannot be verified. Request a new reset link and open the latest email link."
+            );
+          } else {
+            setMessage(error.message);
+          }
           return;
         }
         setReady(true);
@@ -57,7 +85,7 @@ export default function ResetPasswordPage() {
     }
 
     void initializeRecoverySession();
-  }, [code, tokenHash, type, supabase]);
+  }, [code, errorParam, tokenHash, type, supabase]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
