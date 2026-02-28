@@ -10,8 +10,27 @@ update public.profiles
 set last_active_at = coalesce(last_active_at, updated_at, created_at, now())
 where last_active_at is null;
 
+create or replace function public.set_profiles_public_id()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.public_id is null or btrim(new.public_id) = '' then
+    new.public_id := 'HH-' || upper(substr(replace(new.user_id::text, '-', ''), 1, 12));
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_profiles_set_public_id on public.profiles;
+create trigger trg_profiles_set_public_id
+before insert or update on public.profiles
+for each row execute function public.set_profiles_public_id();
+
 alter table public.profiles
-  alter column public_id set default ('HH-' || upper(substr(replace(user_id::text, '-', ''), 1, 12))),
+  alter column public_id drop default,
   alter column public_id set not null,
   alter column last_active_at set default now(),
   alter column last_active_at set not null;

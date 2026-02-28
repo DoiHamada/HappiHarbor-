@@ -20,13 +20,14 @@ type DiscoverPostRow = {
   photo_path: string | null;
   is_public?: boolean | null;
   created_at: string;
-  profiles: {
-    user_id: string;
-    public_id: string | null;
-    display_name: string;
-    avatar_url: string | null;
-    last_active_at: string | null;
-  } | null;
+};
+
+type ProfileLite = {
+  user_id: string;
+  public_id?: string | null;
+  display_name: string;
+  avatar_url?: string | null;
+  last_active_at?: string | null;
 };
 
 type MeRow = {
@@ -116,21 +117,45 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
 
   const { data: postsWithVisibility, error: postsVisibilityError } = await supabase
     .from("feed_posts")
-    .select("id,user_id,thought,photo_path,is_public,created_at,profiles(user_id,public_id,display_name,avatar_url,last_active_at)")
+    .select("id,user_id,thought,photo_path,is_public,created_at")
     .order("created_at", { ascending: false })
     .limit(80);
 
   const { data: postsWithoutVisibility, error: postsWithoutVisibilityError } = postsVisibilityError
     ? await supabase
         .from("feed_posts")
-        .select("id,user_id,thought,photo_path,created_at,profiles(user_id,public_id,display_name,avatar_url,last_active_at)")
+        .select("id,user_id,thought,photo_path,created_at")
         .order("created_at", { ascending: false })
         .limit(80)
     : { data: null, error: null };
 
-  const allPosts = ((postsWithVisibility ?? postsWithoutVisibility ?? []) as unknown as DiscoverPostRow[]);
+  const rawPosts = ((postsWithVisibility ?? postsWithoutVisibility ?? []) as unknown as DiscoverPostRow[]);
+  const profileIds = Array.from(new Set(rawPosts.map((post) => post.user_id)));
+  const { data: postProfilesWithPresence, error: postProfilesPresenceError } = profileIds.length
+    ? await supabase
+        .from("profiles")
+        .select("user_id,public_id,display_name,avatar_url,last_active_at")
+        .in("user_id", profileIds)
+    : { data: [] as ProfileLite[], error: null };
+
+  const { data: postProfilesFallback, error: postProfilesFallbackError } = postProfilesPresenceError
+    ? await supabase
+        .from("profiles")
+        .select("user_id,display_name,avatar_url")
+        .in("user_id", profileIds)
+    : { data: null, error: null };
+
+  const profilesById = new Map<string, ProfileLite>(
+    ((postProfilesWithPresence ?? postProfilesFallback ?? []) as ProfileLite[]).map((row) => [row.user_id, row])
+  );
+
+  const allPosts = rawPosts.map((post) => ({
+    ...post,
+    profiles: profilesById.get(post.user_id) ?? null
+  }));
   const canManagePostVisibility = !postsVisibilityError;
-  const postsError = postsVisibilityError ?? postsWithoutVisibilityError;
+  const postsError =
+    postsVisibilityError ?? postsWithoutVisibilityError ?? postProfilesPresenceError ?? postProfilesFallbackError;
   const paths = allPosts.map((post) => post.photo_path).filter((value): value is string => Boolean(value));
   const photoUrlByPath = new Map<string, string>();
   const postIds = allPosts.map((post) => post.id);
