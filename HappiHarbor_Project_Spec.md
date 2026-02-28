@@ -148,6 +148,30 @@ Admin capabilities:
 - Blocking revokes message permissions immediately
 - Reports can be submitted from active conversations
 
+### Social Feed & Interactions
+- All feed posts (photo posts and text/thought posts) support:
+  - Reactions
+  - Comments
+- Post owners can manage posts after publishing by:
+  - Deleting their own posts
+  - Changing post privacy between `Public` and `Only friends`
+
+### Global Search
+- Top navigation includes a search entry point (search icon).
+- Search supports lookup by:
+  - Public user ID
+  - Display name
+- Search results link directly to the corresponding user profile page.
+
+### Notifications
+- Header chat icon displays a red badge with unread chat count.
+- Chat notifications are shown only as chat badge state and chat-specific UI context.
+- Notifications page excludes chat notifications.
+- Notifications page is reserved for social interaction events:
+  - Reactions on user posts
+  - Comments on user posts
+  - Profile viewers
+
 ### Safety & Admin
 - Automated moderation flags unsafe content/behavior
 - Admin dashboard supports triage and enforcement actions
@@ -180,6 +204,11 @@ Admin capabilities:
 - `preferences` (matching preferences including optional appearance settings)
 - `matches` (pairing state and eligibility)
 - `messages` (chat content and metadata)
+- `feed_posts` (user-created photo/thought posts with visibility state)
+- `post_reactions` (reaction actor, target post, reaction type, timestamps)
+- `post_comments` (comment actor, target post, comment body, timestamps)
+- `profile_views` (viewer, viewed profile, timestamp)
+- `notifications` (social notification items only; chat unread count handled separately)
 - `reports` (user-submitted reports)
 - `moderation_flags` (automated detections)
 - `moderation_actions` (manual admin actions + audit trail)
@@ -198,6 +227,12 @@ Admin capabilities:
 10. Automated moderation and manual review both function in MVP.
 11. Basic admin dashboard supports queue review and enforcement actions.
 12. Web app is responsive across desktop and mobile browsers.
+13. Chat icon shows a red unread badge count for new messages.
+14. Discover header uses current user avatar in place of Discover title/subtitle.
+15. Top navigation search icon opens user search by public ID or name with profile-linked results.
+16. Feed posts support reactions and comments for both photo and text/thought posts.
+17. Users can delete their own posts and change post privacy (`Only friends` vs `Public`) after posting.
+18. Notifications page shows only social interactions (reactions, comments, profile viewers) and excludes chat items.
 
 ## 9. Post-MVP / Phase 2 Direction
 - React Native app for iOS and Android reusing backend services
@@ -258,6 +293,25 @@ Admin capabilities:
 - Each member has a stable public user ID for in-app discovery and profile linking.
 - Users can open public member profiles at `/profile/[publicId]` when that member has a published profile.
 - Member active status is shown across discover, profile, and messaging experiences.
+
+### 11.7 Planned Product Updates (New Requirements)
+- Notification badge:
+  - Show a red numeric unread badge on the top-right of the chat icon when new chat messages arrive.
+- Discover page header:
+  - Remove Discover title/subtitle in header.
+  - Show current user profile avatar in header in that space.
+- Top navigation search:
+  - Add search icon to top nav.
+  - Support search by user ID or name.
+  - Link each result directly to the matched user profile.
+- Post interactions:
+  - Enable reactions and comments on all post types (photo posts and text/thought posts).
+- Post management after publish:
+  - Post owner can delete own post.
+  - Post owner can change privacy between `Only friends` and `Public` any time.
+- Notification feed logic:
+  - Notifications page contains only social interactions (comments, reactions, profile viewers).
+  - Chat notifications are excluded from notifications feed and represented through chat unread indicators.
 - Messages page now shows available users ordered from active to inactive, with profile links and user IDs.
 - Messages now support direct chat start with published users (no request/approval step in this phase).
 - Conversations remain in chat-box format with direct message sending inside active conversations.

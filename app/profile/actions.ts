@@ -178,3 +178,35 @@ export async function updateMomentVisibility(formData: FormData) {
   revalidatePath(profilePath);
   redirect(profilePath);
 }
+
+export async function deleteOwnMoment(formData: FormData) {
+  const { supabase, user, profile } = await requireUserAndProfile();
+  const postId = String(formData.get("post_id") ?? "").trim();
+
+  if (!postId) {
+    throw new Error("Post is required.");
+  }
+
+  const { data: post } = await supabase
+    .from("feed_posts")
+    .select("id,user_id,photo_path")
+    .eq("id", postId)
+    .maybeSingle();
+
+  if (!post || post.user_id !== user.id) {
+    throw new Error("Post not found.");
+  }
+
+  const { error } = await supabase.from("feed_posts").delete().eq("id", postId).eq("user_id", user.id);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (post.photo_path) {
+    await supabase.storage.from("feed-photos").remove([post.photo_path]);
+  }
+
+  const profilePath = `/profile/${profile.public_id}`;
+  revalidatePath(profilePath);
+  redirect(profilePath);
+}

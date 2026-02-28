@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { MessagesLiveUpdates } from "@/components/messages-live-updates";
 import { openDirectChat, sendConversationMessage } from "./actions";
 
 type MessagesPageProps = {
@@ -30,6 +31,8 @@ type ChatMessageRow = {
   sender_id: string;
   content: string;
   created_at: string;
+  delivered_at: string | null;
+  seen_at: string | null;
 };
 
 function formatTime(value: string): string {
@@ -48,6 +51,12 @@ function isRecentlyActive(lastActiveAt: string | null | undefined): boolean {
 
 function fallbackPublicId(userId: string): string {
   return `HH-${userId.replaceAll("-", "").slice(0, 12).toUpperCase()}`;
+}
+
+function messageStatus(message: ChatMessageRow): "sent" | "delivered" | "seen" {
+  if (message.seen_at) return "seen";
+  if (message.delivered_at) return "delivered";
+  return "sent";
 }
 
 export default async function MessagesPage({ searchParams }: MessagesPageProps) {
@@ -106,6 +115,8 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
     .from("profiles")
     .update({ last_active_at: new Date().toISOString() })
     .eq("user_id", user.id);
+
+  await supabase.rpc("mark_conversation_delivered", { p_user: user.id });
 
   const { data: conversations } = await supabase
     .from("conversations")
@@ -167,7 +178,7 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
   const { data: messageRows } = selectedConversationId
     ? await supabase
         .from("conversation_messages")
-        .select("id,conversation_id,sender_id,content,created_at")
+        .select("id,conversation_id,sender_id,content,created_at,delivered_at,seen_at")
         .eq("conversation_id", selectedConversationId)
         .order("created_at", { ascending: true })
         .limit(250)
@@ -201,6 +212,7 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
 
   return (
     <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen px-0 pb-0 pt-0">
+      <MessagesLiveUpdates userId={user.id} conversationIds={typedConversations.map((row) => row.id)} />
       <div className="flex h-[calc(100vh-8rem)] min-h-[680px] w-full overflow-hidden bg-[#fcfaf8] text-slate-900">
         <section className="flex w-[360px] shrink-0 flex-col border-r border-[#ee9d2b]/10 bg-white">
           <header className="border-b border-[#ee9d2b]/10 p-6">
@@ -317,6 +329,7 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
                       const mine = message.sender_id === user.id;
                       const senderProfile = profilesById.get(message.sender_id);
                       const senderName = message.sender_id === user.id ? "You" : (senderProfile?.display_name ?? "Member");
+                      const status = mine ? messageStatus(message) : null;
 
                       return (
                         <div
@@ -330,8 +343,17 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
                           />
                           <div className={`rounded-2xl p-4 text-sm ${mine ? "bg-[#ee9d2b] text-white" : "bg-white text-slate-700"}`}>
                             <p className="whitespace-pre-wrap">{message.content}</p>
-                            <p className={`mt-2 text-[11px] ${mine ? "text-orange-100" : "text-slate-400"}`}>
+                            <p className={`mt-2 flex items-center justify-end gap-2 text-[11px] ${mine ? "text-orange-100" : "text-slate-400"}`}>
                               {formatTime(message.created_at)}
+                              {mine ? (
+                                <span
+                                  aria-label={`Message ${status}`}
+                                  title={`Message ${status}`}
+                                  className={status === "seen" ? "text-sky-300" : "text-slate-200"}
+                                >
+                                  {status === "sent" ? "✓" : "✓✓"}
+                                </span>
+                              ) : null}
                             </p>
                           </div>
                         </div>

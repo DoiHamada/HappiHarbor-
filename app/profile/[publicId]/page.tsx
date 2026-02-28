@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { updateMomentVisibility, updateOwnProfile } from "@/app/profile/actions";
+import { addDiscoverComment, reactToDiscoverPost } from "@/app/discover/actions";
+import { deleteOwnMoment, updateMomentVisibility, updateOwnProfile } from "@/app/profile/actions";
 
 type ProfilePageProps = {
   params: Promise<{ publicId: string }>;
@@ -28,6 +29,25 @@ type FeedRow = {
   photo_path: string | null;
   created_at: string;
   is_public: boolean;
+};
+
+type ReactionRow = {
+  post_id: string;
+  user_id: string;
+  reaction: string;
+};
+
+type CommentRow = {
+  id: string;
+  post_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  profiles: {
+    public_id: string | null;
+    display_name: string;
+    avatar_url: string | null;
+  } | null;
 };
 
 function isRecentlyActive(lastActiveAt: string | null | undefined): boolean {
@@ -71,6 +91,15 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
     notFound();
   }
 
+  if (!isOwner) {
+    await supabase.from("social_notifications").insert({
+      recipient_user_id: typedProfile.user_id,
+      actor_user_id: user.id,
+      type: "profile_view",
+      details: "Viewed your profile"
+    });
+  }
+
   await supabase
     .from("profiles")
     .update({ last_active_at: new Date().toISOString() })
@@ -90,6 +119,43 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
   const { data: posts } = await postsQuery;
 
   const typedPosts = (posts ?? []) as FeedRow[];
+  const postIds = typedPosts.map((post) => post.id);
+
+  const [{ data: reactionRows }, { data: commentRows }] = await Promise.all([
+    postIds.length
+      ? supabase
+          .from("feed_post_reactions")
+          .select("post_id,user_id,reaction")
+          .in("post_id", postIds)
+      : Promise.resolve({ data: [] as unknown as ReactionRow[] }),
+    postIds.length
+      ? supabase
+          .from("feed_post_comments")
+          .select("id,post_id,user_id,content,created_at,profiles(public_id,display_name,avatar_url)")
+          .in("post_id", postIds)
+          .order("created_at", { ascending: true })
+      : Promise.resolve({ data: [] as unknown as CommentRow[] })
+  ]);
+
+  const typedReactions = (reactionRows ?? []) as ReactionRow[];
+  const typedComments = (commentRows ?? []) as CommentRow[];
+  const reactionGroups = new Map<string, Map<string, number>>();
+  const myReactionByPost = new Map<string, string>();
+  const commentsByPost = new Map<string, CommentRow[]>();
+
+  typedReactions.forEach((row) => {
+    if (!reactionGroups.has(row.post_id)) reactionGroups.set(row.post_id, new Map<string, number>());
+    const byReaction = reactionGroups.get(row.post_id)!;
+    byReaction.set(row.reaction, (byReaction.get(row.reaction) ?? 0) + 1);
+    if (row.user_id === user.id) {
+      myReactionByPost.set(row.post_id, row.reaction);
+    }
+  });
+
+  typedComments.forEach((row) => {
+    if (!commentsByPost.has(row.post_id)) commentsByPost.set(row.post_id, []);
+    commentsByPost.get(row.post_id)!.push(row);
+  });
 
   const paths = typedPosts.map((post) => post.photo_path).filter((value): value is string => Boolean(value));
   const photoUrlByPath = new Map<string, string>();
@@ -197,13 +263,21 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
                       })}
                     </p>
                     {isOwner ? (
-                      <form action={updateMomentVisibility}>
-                        <input type="hidden" name="post_id" value={post.id} />
-                        <input type="hidden" name="make_public" value={post.is_public ? "0" : "1"} />
-                        <button className="btn-secondary px-3 py-1 text-xs" type="submit">
-                          {post.is_public ? "Set private" : "Set public"}
-                        </button>
-                      </form>
+                      <div className="flex items-center gap-2">
+                        <form action={updateMomentVisibility}>
+                          <input type="hidden" name="post_id" value={post.id} />
+                          <input type="hidden" name="make_public" value={post.is_public ? "0" : "1"} />
+                          <button className="btn-secondary px-3 py-1 text-xs" type="submit">
+                            {post.is_public ? "Only friends" : "Public"}
+                          </button>
+                        </form>
+                        <form action={deleteOwnMoment}>
+                          <input type="hidden" name="post_id" value={post.id} />
+                          <button className="rounded-full border border-red-200 px-3 py-1 text-xs font-semibold text-red-600" type="submit">
+                            Delete
+                          </button>
+                        </form>
+                      </div>
                     ) : null}
                   </div>
 
@@ -215,6 +289,40 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
                   {photoUrl && (
                     <img src={photoUrl} alt={`${typedProfile.display_name} moment photo`} className="mt-2 w-full rounded-xl border border-harbor-ink/10 object-cover" />
                   )}
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {["❤️", "👍", "🔥", "😂"].map((emoji) => {
+                      const count = reactionGroups.get(post.id)?.get(emoji) ?? 0;
+                      const mine = myReactionByPost.get(post.id) === emoji;
+                      return (
+                        <form key={emoji} action={reactToDiscoverPost}>
+                          <input type="hidden" name="post_id" value={post.id} />
+                          <input type="hidden" name="reaction" value={emoji} />
+                          <button
+                            type="submit"
+                            className={`rounded-full border px-2 py-1 text-xs ${mine ? "border-[#ec9f29] bg-[#fff3e1]" : "border-harbor-ink/10 bg-white"}`}
+                          >
+                            {emoji} {count > 0 ? count : ""}
+                          </button>
+                        </form>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-3 space-y-2 rounded-xl bg-[#f8f4ef] p-3">
+                    {(commentsByPost.get(post.id) ?? []).slice(-4).map((comment) => (
+                      <div key={comment.id} className="text-xs text-harbor-ink/85">
+                        <span className="font-semibold">{comment.profiles?.display_name ?? "Member"}</span>: {comment.content}
+                      </div>
+                    ))}
+                    <form action={addDiscoverComment} className="flex items-center gap-2">
+                      <input type="hidden" name="post_id" value={post.id} />
+                      <input className="input py-2 text-xs" name="content" maxLength={1200} placeholder="Write a comment..." required />
+                      <button className="btn-secondary px-3 py-2 text-xs" type="submit">
+                        Comment
+                      </button>
+                    </form>
+                  </div>
                 </article>
               );
             })}

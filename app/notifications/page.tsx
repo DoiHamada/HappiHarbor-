@@ -2,17 +2,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-type ConversationRow = {
+type SocialNotificationRow = {
   id: string;
-  user_a: string;
-  user_b: string;
-};
-
-type MessageRow = {
-  id: string;
-  conversation_id: string;
-  sender_id: string;
-  content: string;
+  recipient_user_id: string;
+  actor_user_id: string;
+  type: "reaction" | "comment" | "profile_view";
+  post_id: string | null;
+  reaction: string | null;
+  details: string | null;
+  is_read: boolean;
   created_at: string;
 };
 
@@ -22,6 +20,10 @@ type ProfileRow = {
   display_name: string;
   avatar_url: string | null;
 };
+
+function fallbackPublicId(userId: string): string {
+  return `HH-${userId.replaceAll("-", "").slice(0, 12).toUpperCase()}`;
+}
 
 export default async function NotificationsPage() {
   const supabase = await createClient();
@@ -33,74 +35,75 @@ export default async function NotificationsPage() {
     redirect("/auth");
   }
 
-  const { data: conversations } = await supabase
-    .from("conversations")
-    .select("id,user_a,user_b")
-    .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
-    .limit(100);
+  const { data: notifications } = await supabase
+    .from("social_notifications")
+    .select("id,recipient_user_id,actor_user_id,type,post_id,reaction,details,is_read,created_at")
+    .eq("recipient_user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(80);
 
-  const typedConversations = (conversations ?? []) as ConversationRow[];
-  const conversationIds = typedConversations.map((row) => row.id);
+  const typedNotifications = (notifications ?? []) as SocialNotificationRow[];
 
-  const unread = await supabase.rpc("unread_conversation_message_count", { p_user: user.id });
+  if (typedNotifications.some((n) => !n.is_read)) {
+    const unreadIds = typedNotifications.filter((n) => !n.is_read).map((n) => n.id);
+    await supabase.from("social_notifications").update({ is_read: true }).in("id", unreadIds);
+  }
 
-  const { data: incomingMessages } = conversationIds.length
-    ? await supabase
-        .from("conversation_messages")
-        .select("id,conversation_id,sender_id,content,created_at")
-        .in("conversation_id", conversationIds)
-        .neq("sender_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(25)
+  const actorIds = Array.from(new Set(typedNotifications.map((n) => n.actor_user_id)));
+  const { data: actors } = actorIds.length
+    ? await supabase.from("profiles").select("user_id,public_id,display_name,avatar_url").in("user_id", actorIds)
     : { data: [] };
 
-  const typedMessages = (incomingMessages ?? []) as MessageRow[];
-  const senderIds = Array.from(new Set(typedMessages.map((message) => message.sender_id)));
-
-  const { data: senders } = senderIds.length
-    ? await supabase
-        .from("profiles")
-        .select("user_id,public_id,display_name,avatar_url")
-        .in("user_id", senderIds)
-    : { data: [] };
-
-  const senderById = new Map<string, ProfileRow>((senders ?? []).map((sender) => [sender.user_id, sender as ProfileRow]));
+  const actorById = new Map<string, ProfileRow>((actors ?? []).map((row) => [row.user_id, row as ProfileRow]));
 
   return (
     <section className="space-y-4">
       <div className="card space-y-2">
         <h1 className="text-2xl font-bold">Notifications</h1>
-        <p className="text-sm text-harbor-ink/75">Unread messages: <span className="font-semibold">{Number(unread.data ?? 0)}</span></p>
+        <p className="text-sm text-harbor-ink/75">Social activity only: reactions, comments, and profile views.</p>
       </div>
 
-      {typedMessages.length === 0 ? (
-        <div className="card text-sm text-harbor-ink/75">No new notifications yet.</div>
+      {typedNotifications.length === 0 ? (
+        <div className="card text-sm text-harbor-ink/75">No social notifications yet.</div>
       ) : (
         <div className="grid gap-3">
-          {typedMessages.map((message) => {
-            const sender = senderById.get(message.sender_id);
+          {typedNotifications.map((item) => {
+            const actor = actorById.get(item.actor_user_id);
+            const actorName = actor?.display_name ?? "Member";
+            const actorPublicId = actor ? actor.public_id ?? fallbackPublicId(actor.user_id) : null;
+
+            let title = "Profile activity";
+            if (item.type === "reaction") {
+              title = `${actorName} reacted ${item.reaction ?? ""} to your post`;
+            } else if (item.type === "comment") {
+              title = `${actorName} commented on your post`;
+            } else if (item.type === "profile_view") {
+              title = `${actorName} viewed your profile`;
+            }
+
             return (
-              <Link
-                key={message.id}
-                href={`/messages?conversation=${message.conversation_id}`}
-                className="card flex items-start gap-3 no-underline"
-              >
+              <div key={item.id} className="card flex items-start gap-3">
                 <img
-                  src={sender?.avatar_url ?? "/logo-mark.svg"}
-                  alt={`${sender?.display_name ?? "Member"} avatar`}
+                  src={actor?.avatar_url ?? "/logo-mark.svg"}
+                  alt={`${actorName} avatar`}
                   className="h-10 w-10 rounded-full border border-harbor-ink/10 object-cover"
                 />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">{sender?.display_name ?? "Member"}</p>
-                  <p className="line-clamp-2 text-sm text-harbor-ink/75">{message.content}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{title}</p>
+                  {item.details ? <p className="text-xs text-harbor-ink/70">{item.details}</p> : null}
                   <p className="mt-1 text-xs text-harbor-ink/60">
-                    {new Date(message.created_at).toLocaleString("en-US", {
+                    {new Date(item.created_at).toLocaleString("en-US", {
                       dateStyle: "medium",
                       timeStyle: "short"
                     })}
                   </p>
                 </div>
-              </Link>
+                {actorPublicId ? (
+                  <Link href={`/profile/${actorPublicId}`} className="btn-secondary no-underline">
+                    View profile
+                  </Link>
+                ) : null}
+              </div>
             );
           })}
         </div>

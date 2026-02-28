@@ -151,7 +151,6 @@ async function openDirectConversation(formData: FormData) {
   }
   await supabase.rpc("mark_conversation_read", { p_conversation: conversationId, p_user: user.id });
   revalidatePath(MESSAGES_PATH);
-  revalidatePath("/", "layout");
   redirect(urlFor({ conversation: conversationId }));
 }
 
@@ -198,6 +197,5 @@ export async function sendConversationMessage(formData: FormData) {
 
   await supabase.rpc("mark_conversation_read", { p_conversation: conversationId, p_user: user.id });
   revalidatePath(MESSAGES_PATH);
-  revalidatePath("/", "layout");
   redirect(urlFor({ conversation: conversationId }));
 }

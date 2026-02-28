@@ -21,7 +21,16 @@ function getFileExtension(file: File): string {
   return fromName && fromName.length <= 5 ? fromName : "bin";
 }
 
-export async function createDiscoverPost(formData: FormData) {
+function discoverPath(params?: Record<string, string | null | undefined>): string {
+  const search = new URLSearchParams();
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    if (value) search.set(key, value);
+  });
+  const query = search.toString();
+  return query ? `/discover?${query}` : "/discover";
+}
+
+async function requirePostingUser() {
   const supabase = await createClient();
   const {
     data: { user }
@@ -52,6 +61,36 @@ export async function createDiscoverPost(formData: FormData) {
   if (profile.is_suspended) {
     errorRedirect("Your account is currently restricted from posting.");
   }
+
+  return { supabase, user };
+}
+
+async function createSocialNotification(args: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  recipientUserId: string;
+  actorUserId: string;
+  type: "reaction" | "comment" | "profile_view";
+  postId?: string | null;
+  commentId?: string | null;
+  reaction?: string | null;
+  details?: string | null;
+}) {
+  const { supabase, recipientUserId, actorUserId, type, postId = null, commentId = null, reaction = null, details = null } = args;
+  if (recipientUserId === actorUserId) return;
+
+  await supabase.from("social_notifications").insert({
+    recipient_user_id: recipientUserId,
+    actor_user_id: actorUserId,
+    type,
+    post_id: postId,
+    comment_id: commentId,
+    reaction,
+    details
+  });
+}
+
+export async function createDiscoverPost(formData: FormData) {
+  const { supabase, user } = await requirePostingUser();
 
   const rawThought = String(formData.get("thought") ?? "").trim();
   const thought = rawThought.length > 0 ? rawThought : null;
@@ -108,4 +147,149 @@ export async function createDiscoverPost(formData: FormData) {
 
   revalidatePath("/discover");
   redirect("/discover?posted=1");
+}
+
+export async function reactToDiscoverPost(formData: FormData) {
+  const { supabase, user } = await requirePostingUser();
+  const postId = String(formData.get("post_id") ?? "").trim();
+  const reaction = String(formData.get("reaction") ?? "").trim().slice(0, 16);
+
+  if (!postId || !reaction) {
+    errorRedirect("Reaction is invalid.");
+  }
+
+  const { data: post } = await supabase.from("feed_posts").select("id,user_id").eq("id", postId).maybeSingle();
+  if (!post) {
+    errorRedirect("Post not found.");
+  }
+
+  const { data: existing } = await supabase
+    .from("feed_post_reactions")
+    .select("reaction")
+    .eq("post_id", postId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (existing?.reaction === reaction) {
+    const { error } = await supabase.from("feed_post_reactions").delete().eq("post_id", postId).eq("user_id", user.id);
+    if (error) errorRedirect(error.message);
+  } else {
+    const { error } = await supabase.from("feed_post_reactions").upsert(
+      {
+        post_id: postId,
+        user_id: user.id,
+        reaction
+      },
+      { onConflict: "post_id,user_id" }
+    );
+    if (error) errorRedirect(error.message);
+
+    await createSocialNotification({
+      supabase,
+      recipientUserId: post.user_id,
+      actorUserId: user.id,
+      type: "reaction",
+      postId,
+      reaction
+    });
+  }
+
+  revalidatePath("/discover");
+  redirect(discoverPath());
+}
+
+export async function addDiscoverComment(formData: FormData) {
+  const { supabase, user } = await requirePostingUser();
+  const postId = String(formData.get("post_id") ?? "").trim();
+  const content = String(formData.get("content") ?? "").trim().slice(0, 1200);
+
+  if (!postId || !content) {
+    errorRedirect("Comment cannot be empty.");
+  }
+
+  const { data: post } = await supabase.from("feed_posts").select("id,user_id").eq("id", postId).maybeSingle();
+  if (!post) {
+    errorRedirect("Post not found.");
+  }
+
+  const { data: comment, error } = await supabase
+    .from("feed_post_comments")
+    .insert({
+      post_id: postId,
+      user_id: user.id,
+      content
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    errorRedirect(error.message);
+  }
+
+  await createSocialNotification({
+    supabase,
+    recipientUserId: post.user_id,
+    actorUserId: user.id,
+    type: "comment",
+    postId,
+    commentId: comment.id,
+    details: content.slice(0, 160)
+  });
+
+  revalidatePath("/discover");
+  redirect(discoverPath());
+}
+
+export async function updateDiscoverPostVisibility(formData: FormData) {
+  const { supabase, user } = await requirePostingUser();
+  const postId = String(formData.get("post_id") ?? "").trim();
+  const makePublic = String(formData.get("make_public") ?? "") === "1";
+
+  if (!postId) {
+    errorRedirect("Post is required.");
+  }
+
+  const { data: post } = await supabase.from("feed_posts").select("id,user_id").eq("id", postId).maybeSingle();
+  if (!post || post.user_id !== user.id) {
+    errorRedirect("Post not found.");
+  }
+
+  const { error } = await supabase.from("feed_posts").update({ is_public: makePublic }).eq("id", postId).eq("user_id", user.id);
+  if (error) {
+    errorRedirect(error.message);
+  }
+
+  revalidatePath("/discover");
+  redirect(discoverPath({ posted: "1" }));
+}
+
+export async function deleteDiscoverPost(formData: FormData) {
+  const { supabase, user } = await requirePostingUser();
+  const postId = String(formData.get("post_id") ?? "").trim();
+
+  if (!postId) {
+    errorRedirect("Post is required.");
+  }
+
+  const { data: post } = await supabase
+    .from("feed_posts")
+    .select("id,user_id,photo_path")
+    .eq("id", postId)
+    .maybeSingle();
+
+  if (!post || post.user_id !== user.id) {
+    errorRedirect("Post not found.");
+  }
+
+  const { error } = await supabase.from("feed_posts").delete().eq("id", postId).eq("user_id", user.id);
+  if (error) {
+    errorRedirect(error.message);
+  }
+
+  if (post.photo_path) {
+    await supabase.storage.from(FEED_BUCKET).remove([post.photo_path]);
+  }
+
+  revalidatePath("/discover");
+  redirect(discoverPath());
 }
