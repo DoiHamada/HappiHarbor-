@@ -9,6 +9,7 @@ import { GenderIcon, genderLabel, IdentityPill, OrientationIcon, orientationLabe
 import { GENDER_OPTIONS, SEXUAL_PREFERENCE_OPTIONS, type OnboardingTagKey } from "@/types/profile";
 import {
   acceptFriendRequest,
+  cancelFriendRequest,
   deleteOwnAvatar,
   deleteOwnCover,
   deleteOwnMoment,
@@ -420,9 +421,19 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
                   </button>
                 </form>
               ) : typedRelationship.status === "pending" ? (
-                <button className="btn-secondary" type="button" disabled>
-                  Requested
-                </button>
+                typedRelationship.created_by === user.id ? (
+                  <form action={cancelFriendRequest}>
+                    <input type="hidden" name="target_user_id" value={typedProfile.user_id} />
+                    <input type="hidden" name="return_path" value={`/profile/${typedProfile.public_id}`} />
+                    <button className="btn-secondary" type="submit">
+                      Cancel Request
+                    </button>
+                  </form>
+                ) : (
+                  <button className="btn-secondary" type="button" disabled>
+                    Requested
+                  </button>
+                )
               ) : (
                 <button className="btn-secondary" type="button" disabled>
                   Friends

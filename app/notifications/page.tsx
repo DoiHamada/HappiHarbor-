@@ -6,7 +6,7 @@ type SocialNotificationRow = {
   id: string;
   recipient_user_id: string;
   actor_user_id: string;
-  type: "reaction" | "comment" | "profile_view";
+  type: "reaction" | "comment" | "profile_view" | "friend_request";
   post_id: string | null;
   reaction: string | null;
   details: string | null;
@@ -43,6 +43,20 @@ export default async function NotificationsPage() {
     .limit(80);
 
   const typedNotifications = (notifications ?? []) as SocialNotificationRow[];
+  const profileViewCountByActor = typedNotifications
+    .filter((item) => item.type === "profile_view")
+    .reduce<Map<string, number>>((acc, item) => {
+      acc.set(item.actor_user_id, (acc.get(item.actor_user_id) ?? 0) + 1);
+      return acc;
+    }, new Map<string, number>());
+
+  const seenProfileViewActor = new Set<string>();
+  const displayNotifications = typedNotifications.filter((item) => {
+    if (item.type !== "profile_view") return true;
+    if (seenProfileViewActor.has(item.actor_user_id)) return false;
+    seenProfileViewActor.add(item.actor_user_id);
+    return true;
+  });
 
   if (typedNotifications.some((n) => !n.is_read)) {
     const unreadIds = typedNotifications.filter((n) => !n.is_read).map((n) => n.id);
@@ -63,11 +77,11 @@ export default async function NotificationsPage() {
         <p className="text-sm text-harbor-ink/75">Social activity only: reactions, comments, and profile views.</p>
       </div>
 
-      {typedNotifications.length === 0 ? (
+      {displayNotifications.length === 0 ? (
         <div className="card text-sm text-harbor-ink/75">No social notifications yet.</div>
       ) : (
         <div className="grid gap-3">
-          {typedNotifications.map((item) => {
+          {displayNotifications.map((item) => {
             const actor = actorById.get(item.actor_user_id);
             const actorName = actor?.display_name ?? "Member";
             const actorPublicId = actor ? actor.public_id ?? fallbackPublicId(actor.user_id) : null;
@@ -78,7 +92,10 @@ export default async function NotificationsPage() {
             } else if (item.type === "comment") {
               title = `${actorName} commented on your post`;
             } else if (item.type === "profile_view") {
-              title = `${actorName} viewed your profile`;
+              const views = profileViewCountByActor.get(item.actor_user_id) ?? 1;
+              title = `${actorName} viewed your profile (${views} ${views === 1 ? "time" : "times"})`;
+            } else if (item.type === "friend_request") {
+              title = `${actorName} sent you a friend request`;
             }
 
             return (

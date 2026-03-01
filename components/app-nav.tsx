@@ -9,7 +9,8 @@ import { createClient } from "@/lib/supabase/client";
 type AppNavProps = {
   userId: string;
   profileHref: string;
-  initialUnreadCount: number;
+  initialMessageUnreadCount: number;
+  initialNotificationUnreadCount: number;
   conversationIds: string[];
 };
 
@@ -18,6 +19,7 @@ type NavItem = {
   label: string;
   icon: ReactNode;
   badge?: number;
+  dot?: boolean;
 };
 
 function iconClass(active: boolean): string {
@@ -105,9 +107,16 @@ function playMessagePing() {
   }
 }
 
-export function AppNav({ userId, profileHref, initialUnreadCount, conversationIds }: AppNavProps) {
+export function AppNav({
+  userId,
+  profileHref,
+  initialMessageUnreadCount,
+  initialNotificationUnreadCount,
+  conversationIds
+}: AppNavProps) {
   const pathname = usePathname();
-  const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
+  const [messageUnreadCount, setMessageUnreadCount] = useState(initialMessageUnreadCount);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(initialNotificationUnreadCount);
   const conversationSetRef = useRef(new Set(conversationIds));
 
   useEffect(() => {
@@ -116,7 +125,10 @@ export function AppNav({ userId, profileHref, initialUnreadCount, conversationId
 
   useEffect(() => {
     if (pathname.startsWith("/messages")) {
-      setUnreadCount(0);
+      setMessageUnreadCount(0);
+    }
+    if (pathname.startsWith("/notifications")) {
+      setNotificationUnreadCount(0);
     }
   }, [pathname]);
 
@@ -138,7 +150,7 @@ export function AppNav({ userId, profileHref, initialUnreadCount, conversationId
           if (!conversationSetRef.current.has(row.conversation_id)) return;
           if (pathname.startsWith("/messages")) return;
 
-          setUnreadCount((value) => value + 1);
+          setMessageUnreadCount((value) => value + 1);
           playMessagePing();
         }
       )
@@ -149,6 +161,38 @@ export function AppNav({ userId, profileHref, initialUnreadCount, conversationId
     };
   }, [pathname, userId]);
 
+  useEffect(() => {
+    const supabase = createClient();
+    const refreshUnread = async () => {
+      const { count } = await supabase
+        .from("social_notifications")
+        .select("id", { head: true, count: "exact" })
+        .eq("recipient_user_id", userId)
+        .eq("is_read", false);
+      setNotificationUnreadCount(Number(count ?? 0));
+    };
+
+    const channel = supabase
+      .channel(`social-notifications-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "social_notifications",
+          filter: `recipient_user_id=eq.${userId}`
+        },
+        () => {
+          void refreshUnread();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
   const navItems = useMemo<NavItem[]>(
     () => [
       { href: "/discover", label: "Discover", icon: <DiscoverIcon active={pathname.startsWith("/discover")} /> },
@@ -157,13 +201,18 @@ export function AppNav({ userId, profileHref, initialUnreadCount, conversationId
         href: "/messages",
         label: "Messages",
         icon: <MessagesIcon active={pathname.startsWith("/messages")} />,
-        badge: unreadCount > 0 ? unreadCount : undefined
+        badge: messageUnreadCount > 0 ? messageUnreadCount : undefined
       },
       { href: profileHref, label: "Profile", icon: <ProfileIcon active={pathname.startsWith("/profile") || pathname.startsWith("/onboarding")} /> },
       { href: "/matches", label: "Matches", icon: <MatchesIcon active={pathname.startsWith("/matches")} /> },
-      { href: "/notifications", label: "Notifications", icon: <NotificationsIcon active={pathname.startsWith("/notifications")} /> }
+      {
+        href: "/notifications",
+        label: "Notifications",
+        icon: <NotificationsIcon active={pathname.startsWith("/notifications")} />,
+        dot: notificationUnreadCount > 0
+      }
     ],
-    [pathname, profileHref, unreadCount]
+    [pathname, profileHref, messageUnreadCount, notificationUnreadCount]
   );
 
   return (
@@ -185,6 +234,9 @@ export function AppNav({ userId, profileHref, initialUnreadCount, conversationId
               <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
                 {item.badge > 99 ? "99+" : item.badge}
               </span>
+            ) : null}
+            {!item.badge && item.dot ? (
+              <span className="absolute -right-0.5 -top-0.5 inline-block h-2.5 w-2.5 rounded-full bg-red-600" />
             ) : null}
             <span className="sr-only">{item.label}</span>
           </Link>

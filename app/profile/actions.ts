@@ -48,6 +48,11 @@ function isMissingSchemaColumnError(message: string, column: string): boolean {
   return normalized.includes(column.toLowerCase()) && normalized.includes("schema cache");
 }
 
+function isMissingRpcFunctionError(message: string, fnName: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes("could not find the function") && normalized.includes(fnName.toLowerCase());
+}
+
 async function requireUserAndProfile() {
   const supabase = await createClient();
   const {
@@ -99,8 +104,75 @@ export async function sendFriendRequest(formData: FormData) {
           ? "Friend request already sent."
           : "Friend request sent.";
 
+  if (status === "requested") {
+    const userA = user.id < targetUserId ? user.id : targetUserId;
+    const userB = user.id < targetUserId ? targetUserId : user.id;
+    const { data: matchRow } = await supabase
+      .from("matches")
+      .select("id")
+      .eq("user_a", userA)
+      .eq("user_b", userB)
+      .maybeSingle();
+
+    await supabase.from("social_notifications").insert({
+      recipient_user_id: targetUserId,
+      actor_user_id: user.id,
+      type: "friend_request",
+      details: matchRow?.id ? `match:${matchRow.id}` : "friend_request"
+    });
+  }
+
   revalidatePath(path);
   revalidatePath("/discover");
+  revalidatePath("/notifications");
+  redirect(`${path}?info=${encodeURIComponent(info)}`);
+}
+
+export async function cancelFriendRequest(formData: FormData) {
+  const { supabase, user, profile } = await requireUserAndProfile();
+  const targetUserId = String(formData.get("target_user_id") ?? "").trim();
+  const path = profilePathFromForm(formData, profile.public_id);
+
+  if (!targetUserId || targetUserId === user.id) {
+    redirect(`${path}?info=${encodeURIComponent("Choose a valid user.")}`);
+  }
+
+  const { data, error } = await supabase.rpc("cancel_friend_request", {
+    p_target: targetUserId,
+    p_user: user.id
+  });
+
+  if (error) {
+    if (isMissingRpcFunctionError(error.message, "public.cancel_friend_request")) {
+      redirect(
+        `${path}?info=${encodeURIComponent(
+          "Cancel request is not available yet. Please run the latest database migration and try again."
+        )}`
+      );
+    }
+    redirect(`${path}?info=${encodeURIComponent(error.message)}`);
+  }
+
+  const status = String(data ?? "");
+  if (status === "canceled") {
+    await supabase
+      .from("social_notifications")
+      .update({ is_read: true })
+      .eq("recipient_user_id", targetUserId)
+      .eq("actor_user_id", user.id)
+      .eq("type", "friend_request")
+      .eq("is_read", false);
+  }
+
+  const info =
+    status === "canceled"
+      ? "Friend request canceled."
+      : status === "not_pending"
+        ? "This request is no longer pending."
+        : "No request to cancel.";
+
+  revalidatePath(path);
+  revalidatePath("/notifications");
   redirect(`${path}?info=${encodeURIComponent(info)}`);
 }
 
