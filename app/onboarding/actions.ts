@@ -181,7 +181,12 @@ export async function saveOnboarding(formData: FormData) {
     preferred_nationalities: null,
     use_appearance_filters: false,
     appearance_filters: {},
-    profile_tags: profileTags
+    profile_tags: profileTags,
+    profile_visibility: {
+      show_age: true,
+      show_nationality: true,
+      show_sexual_preference: true
+    }
   };
 
   const { error: preferenceError } = await supabase
@@ -189,11 +194,11 @@ export async function saveOnboarding(formData: FormData) {
     .upsert(preferencePayload, { onConflict: "user_id" });
 
   if (preferenceError) {
-    const missingProfileTagsColumn =
-      preferenceError.message.includes("profile_tags") &&
-      preferenceError.message.toLowerCase().includes("schema cache");
+    const normalized = preferenceError.message.toLowerCase();
+    const missingProfileTagsColumn = normalized.includes("profile_tags") && normalized.includes("schema cache");
+    const missingProfileVisibilityColumn = normalized.includes("profile_visibility") && normalized.includes("schema cache");
 
-    if (!missingProfileTagsColumn) {
+    if (!missingProfileTagsColumn && !missingProfileVisibilityColumn) {
       throw new Error(preferenceError.message);
     }
 

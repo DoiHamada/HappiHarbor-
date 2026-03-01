@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { GENDER_OPTIONS, LANGUAGE_OPTIONS, ONBOARDING_TAG_OPTIONS, SEXUAL_PREFERENCE_OPTIONS } from "@/types/profile";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const MAX_COVER_BYTES = 7 * 1024 * 1024;
@@ -22,6 +23,31 @@ function profilePathFromForm(formData: FormData, fallbackPublicId: string): stri
   return `/profile/${fallbackPublicId}`;
 }
 
+function parseNumber(value: FormDataEntryValue | null, fallback: number): number {
+  const parsed = Number(value ?? fallback);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseCheckboxValues(formData: FormData, key: string): string[] {
+  return formData
+    .getAll(key)
+    .map((entry) => String(entry).trim())
+    .filter(Boolean);
+}
+
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
+function normalizeToken(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, "_");
+}
+
+function isMissingSchemaColumnError(message: string, column: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes(column.toLowerCase()) && normalized.includes("schema cache");
+}
+
 async function requireUserAndProfile() {
   const supabase = await createClient();
   const {
@@ -34,7 +60,7 @@ async function requireUserAndProfile() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("user_id,public_id,avatar_url,avatar_storage_path,cover_photo_url,cover_photo_storage_path")
+    .select("user_id,public_id,avatar_url,avatar_storage_path,cover_photo_url,cover_photo_storage_path,nationality,age_years,gender,sexual_preference")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -105,96 +131,78 @@ export async function acceptFriendRequest(formData: FormData) {
 
 export async function updateOwnProfile(formData: FormData) {
   const { supabase, user, profile } = await requireUserAndProfile();
+  const path = profilePathFromForm(formData, profile.public_id);
 
   const displayName = String(formData.get("display_name") ?? "").trim();
+  const nationality = String(formData.get("nationality") ?? profile.nationality ?? "").trim();
   const bio = String(formData.get("bio") ?? "").trim();
-  const avatarFile = formData.get("avatar_file");
-  const coverFile = formData.get("cover_file");
+  const ageYears = parseNumber(formData.get("age_years"), profile.age_years ?? 18);
+  const gender = String(formData.get("gender") ?? profile.gender ?? "prefer_not_to_say");
+  const sexualPreference = String(formData.get("sexual_preference") ?? profile.sexual_preference ?? "prefer_not_to_say");
+  const showAge = formData.get("show_age") === "on";
+  const showNationality = formData.get("show_nationality") === "on";
+  const showSexualPreference = formData.get("show_sexual_preference") === "on";
+  const preferredLanguages = unique(parseCheckboxValues(formData, "preferred_languages").map(normalizeToken));
+  const profileTags = Object.fromEntries(
+    Object.keys(ONBOARDING_TAG_OPTIONS).map((key) => {
+      const values = unique(parseCheckboxValues(formData, `tag_${key}`).map(normalizeToken));
+      return [key, values];
+    })
+  );
+
+  let minAge = parseNumber(formData.get("min_age"), ageYears >= 18 ? 18 : 13);
+  let maxAge = parseNumber(formData.get("max_age"), ageYears >= 18 ? 35 : 17);
 
   if (!displayName) {
     throw new Error("Display name is required.");
   }
 
-  let avatarUrl = profile.avatar_url ?? "/logo-mark.svg";
-  let avatarStoragePath = profile.avatar_storage_path;
-
-  if (avatarFile instanceof File && avatarFile.size > 0) {
-    if (!ALLOWED_IMAGE_TYPES.has(avatarFile.type)) {
-      throw new Error("Avatar must be JPG, PNG, or WEBP.");
-    }
-
-    if (avatarFile.size > MAX_AVATAR_BYTES) {
-      throw new Error("Avatar must be 5MB or smaller.");
-    }
-
-    const extension = getImageExtension(avatarFile);
-    const filePath = `${user.id}/${Date.now()}-avatar.${extension}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("profile-avatars")
-      .upload(filePath, avatarFile, { upsert: false, contentType: avatarFile.type });
-
-    if (uploadError) {
-      throw new Error(`Avatar upload failed: ${uploadError.message}`);
-    }
-
-    if (profile.avatar_storage_path) {
-      await supabase.storage.from("profile-avatars").remove([profile.avatar_storage_path]);
-    }
-
-    const {
-      data: { publicUrl }
-    } = supabase.storage.from("profile-avatars").getPublicUrl(filePath);
-
-    avatarUrl = publicUrl;
-    avatarStoragePath = filePath;
+  if (!nationality) {
+    throw new Error("Nationality is required.");
   }
 
-  let coverUrl = profile.cover_photo_url;
-  let coverStoragePath = profile.cover_photo_storage_path;
+  if (!GENDER_OPTIONS.includes(gender as (typeof GENDER_OPTIONS)[number])) {
+    throw new Error("Invalid gender option.");
+  }
 
-  if (coverFile instanceof File && coverFile.size > 0) {
-    if (!ALLOWED_IMAGE_TYPES.has(coverFile.type)) {
-      throw new Error("Cover photo must be JPG, PNG, or WEBP.");
-    }
+  if (
+    !SEXUAL_PREFERENCE_OPTIONS.includes(
+      sexualPreference as (typeof SEXUAL_PREFERENCE_OPTIONS)[number]
+    )
+  ) {
+    throw new Error("Invalid sexual preference option.");
+  }
 
-    if (coverFile.size > MAX_COVER_BYTES) {
-      throw new Error("Cover photo must be 7MB or smaller.");
-    }
+  if (
+    preferredLanguages.some(
+      (value) => !LANGUAGE_OPTIONS.includes(value as (typeof LANGUAGE_OPTIONS)[number]) && !/^[a-z0-9_]{2,40}$/.test(value)
+    )
+  ) {
+    throw new Error("Invalid preferred language option.");
+  }
 
-    const extension = getImageExtension(coverFile);
-    const filePath = `${user.id}/${Date.now()}-cover.${extension}`;
+  if (preferredLanguages.length === 0) {
+    throw new Error("Add at least one language.");
+  }
 
-    const { error: uploadError } = await supabase.storage
-      .from("profile-covers")
-      .upload(filePath, coverFile, { upsert: false, contentType: coverFile.type });
-
-    if (uploadError) {
-      throw new Error(`Cover photo upload failed: ${uploadError.message}`);
-    }
-
-    if (profile.cover_photo_storage_path) {
-      await supabase.storage.from("profile-covers").remove([profile.cover_photo_storage_path]);
-    }
-
-    const {
-      data: { publicUrl }
-    } = supabase.storage.from("profile-covers").getPublicUrl(filePath);
-
-    coverUrl = publicUrl;
-    coverStoragePath = filePath;
+  if (ageYears < 18) {
+    minAge = Math.max(13, Math.min(minAge, 17));
+    maxAge = Math.max(minAge, Math.min(maxAge, 17));
+  } else {
+    minAge = Math.max(18, minAge);
+    maxAge = Math.max(minAge, maxAge);
   }
 
   const { error } = await supabase
     .from("profiles")
     .update({
       display_name: displayName,
+      nationality,
+      age_years: ageYears,
+      gender,
+      sexual_preference: sexualPreference,
       bio: bio || null,
-      is_published: true,
-      avatar_url: avatarUrl,
-      avatar_storage_path: avatarStoragePath,
-      cover_photo_url: coverUrl,
-      cover_photo_storage_path: coverStoragePath
+      is_published: true
     })
     .eq("user_id", user.id);
 
@@ -202,9 +210,210 @@ export async function updateOwnProfile(formData: FormData) {
     throw new Error(error.message);
   }
 
-  const profilePath = `/profile/${profile.public_id}`;
-  revalidatePath(profilePath);
-  redirect(`${profilePath}?info=${encodeURIComponent("Profile updated.")}`);
+  const preferencePayload = {
+    user_id: user.id,
+    min_age: minAge,
+    max_age: maxAge,
+    preferred_languages: preferredLanguages,
+    preferred_genders: null,
+    preferred_nationalities: null,
+    use_appearance_filters: false,
+    appearance_filters: {},
+    profile_tags: profileTags,
+    profile_visibility: {
+      show_age: showAge,
+      show_nationality: showNationality,
+      show_sexual_preference: showSexualPreference
+    }
+  };
+
+  const { error: preferenceError } = await supabase
+    .from("preferences")
+    .upsert(preferencePayload, { onConflict: "user_id" });
+
+  if (preferenceError) {
+    const missingProfileTags = isMissingSchemaColumnError(preferenceError.message, "profile_tags");
+    const missingProfileVisibility = isMissingSchemaColumnError(preferenceError.message, "profile_visibility");
+
+    if (!missingProfileTags && !missingProfileVisibility) {
+      throw new Error(preferenceError.message);
+    }
+
+    const { error: fallbackPreferenceError } = await supabase
+      .from("preferences")
+      .upsert(
+        {
+          user_id: user.id,
+          min_age: minAge,
+          max_age: maxAge,
+          preferred_languages: preferredLanguages,
+          preferred_genders: null,
+          preferred_nationalities: null,
+          use_appearance_filters: false,
+          appearance_filters: {}
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (fallbackPreferenceError) {
+      throw new Error(fallbackPreferenceError.message);
+    }
+  }
+
+  revalidatePath(path);
+  redirect(`${path}?info=${encodeURIComponent("Profile updated.")}`);
+}
+
+export async function updateOwnAvatar(formData: FormData) {
+  const { supabase, user, profile } = await requireUserAndProfile();
+  const path = profilePathFromForm(formData, profile.public_id);
+  const avatarFile = formData.get("avatar_file");
+
+  if (!(avatarFile instanceof File) || avatarFile.size <= 0) {
+    redirect(`${path}?info=${encodeURIComponent("Choose an avatar image first.")}`);
+  }
+
+  if (!ALLOWED_IMAGE_TYPES.has(avatarFile.type)) {
+    throw new Error("Avatar must be JPG, PNG, or WEBP.");
+  }
+
+  if (avatarFile.size > MAX_AVATAR_BYTES) {
+    throw new Error("Avatar must be 5MB or smaller.");
+  }
+
+  const extension = getImageExtension(avatarFile);
+  const filePath = `${user.id}/${Date.now()}-avatar.${extension}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("profile-avatars")
+    .upload(filePath, avatarFile, { upsert: false, contentType: avatarFile.type });
+
+  if (uploadError) {
+    throw new Error(`Avatar upload failed: ${uploadError.message}`);
+  }
+
+  if (profile.avatar_storage_path) {
+    await supabase.storage.from("profile-avatars").remove([profile.avatar_storage_path]);
+  }
+
+  const {
+    data: { publicUrl }
+  } = supabase.storage.from("profile-avatars").getPublicUrl(filePath);
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      avatar_url: publicUrl,
+      avatar_storage_path: filePath
+    })
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath(path);
+  redirect(`${path}?info=${encodeURIComponent("Avatar updated.")}`);
+}
+
+export async function deleteOwnAvatar(formData: FormData) {
+  const { supabase, profile } = await requireUserAndProfile();
+  const path = profilePathFromForm(formData, profile.public_id);
+
+  if (profile.avatar_storage_path) {
+    await supabase.storage.from("profile-avatars").remove([profile.avatar_storage_path]);
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      avatar_url: "/logo-mark.svg",
+      avatar_storage_path: null
+    })
+    .eq("user_id", profile.user_id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath(path);
+  redirect(`${path}?info=${encodeURIComponent("Avatar removed.")}`);
+}
+
+export async function updateOwnCover(formData: FormData) {
+  const { supabase, user, profile } = await requireUserAndProfile();
+  const path = profilePathFromForm(formData, profile.public_id);
+  const coverFile = formData.get("cover_file");
+
+  if (!(coverFile instanceof File) || coverFile.size <= 0) {
+    redirect(`${path}?info=${encodeURIComponent("Choose a cover image first.")}`);
+  }
+
+  if (!ALLOWED_IMAGE_TYPES.has(coverFile.type)) {
+    throw new Error("Cover photo must be JPG, PNG, or WEBP.");
+  }
+
+  if (coverFile.size > MAX_COVER_BYTES) {
+    throw new Error("Cover photo must be 7MB or smaller.");
+  }
+
+  const extension = getImageExtension(coverFile);
+  const filePath = `${user.id}/${Date.now()}-cover.${extension}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("profile-covers")
+    .upload(filePath, coverFile, { upsert: false, contentType: coverFile.type });
+
+  if (uploadError) {
+    throw new Error(`Cover photo upload failed: ${uploadError.message}`);
+  }
+
+  if (profile.cover_photo_storage_path) {
+    await supabase.storage.from("profile-covers").remove([profile.cover_photo_storage_path]);
+  }
+
+  const {
+    data: { publicUrl }
+  } = supabase.storage.from("profile-covers").getPublicUrl(filePath);
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      cover_photo_url: publicUrl,
+      cover_photo_storage_path: filePath
+    })
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath(path);
+  redirect(`${path}?info=${encodeURIComponent("Cover photo updated.")}`);
+}
+
+export async function deleteOwnCover(formData: FormData) {
+  const { supabase, profile } = await requireUserAndProfile();
+  const path = profilePathFromForm(formData, profile.public_id);
+
+  if (profile.cover_photo_storage_path) {
+    await supabase.storage.from("profile-covers").remove([profile.cover_photo_storage_path]);
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      cover_photo_url: null,
+      cover_photo_storage_path: null
+    })
+    .eq("user_id", profile.user_id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath(path);
+  redirect(`${path}?info=${encodeURIComponent("Cover photo removed.")}`);
 }
 
 export async function updateMomentVisibility(formData: FormData) {

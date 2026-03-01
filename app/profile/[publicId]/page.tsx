@@ -3,10 +3,18 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { addDiscoverComment, reactToDiscoverPost } from "@/app/discover/actions";
 import { openDirectChat } from "@/app/messages/actions";
+import { PreferenceControls } from "@/app/onboarding/preference-controls";
+import { MediaInlineEditor } from "@/app/profile/media-inline-editor";
+import { GenderIcon, genderLabel, IdentityPill, OrientationIcon, orientationLabel } from "@/components/identity-icons";
+import { GENDER_OPTIONS, SEXUAL_PREFERENCE_OPTIONS, type OnboardingTagKey } from "@/types/profile";
 import {
   acceptFriendRequest,
+  deleteOwnAvatar,
+  deleteOwnCover,
   deleteOwnMoment,
   sendFriendRequest,
+  updateOwnAvatar,
+  updateOwnCover,
   updateMomentVisibility,
   updateOwnProfile
 } from "@/app/profile/actions";
@@ -26,6 +34,7 @@ type ProfileRow = {
   sexual_preference: string;
   bio: string | null;
   avatar_url: string | null;
+  avatar_storage_path: string | null;
   cover_photo_url: string | null;
   is_published: boolean;
   last_active_at: string;
@@ -73,6 +82,18 @@ type RequestProfile = {
   avatar_url: string | null;
 };
 
+type PreferenceRow = {
+  min_age: number;
+  max_age: number;
+  preferred_languages: string[] | null;
+  profile_tags: Partial<Record<OnboardingTagKey, unknown>> | null;
+  profile_visibility: {
+    show_age?: boolean;
+    show_nationality?: boolean;
+    show_sexual_preference?: boolean;
+  } | null;
+};
+
 function isRecentlyActive(lastActiveAt: string | null | undefined): boolean {
   if (!lastActiveAt) return false;
   const ts = new Date(lastActiveAt).getTime();
@@ -82,6 +103,10 @@ function isRecentlyActive(lastActiveAt: string | null | undefined): boolean {
 
 function fallbackPublicId(userId: string): string {
   return `HH-${userId.replaceAll("-", "").slice(0, 12).toUpperCase()}`;
+}
+
+function titleize(value: string): string {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export default async function PublicProfilePage({ params, searchParams }: ProfilePageProps) {
@@ -101,7 +126,7 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "user_id,public_id,display_name,nationality,age_years,gender,sexual_preference,bio,avatar_url,cover_photo_url,is_published,last_active_at"
+      "user_id,public_id,display_name,nationality,age_years,gender,sexual_preference,bio,avatar_url,avatar_storage_path,cover_photo_url,is_published,last_active_at"
     )
     .eq("public_id", publicId.toUpperCase())
     .maybeSingle();
@@ -115,6 +140,30 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
   const isOwner = typedProfile.user_id === user.id;
   const pairUserA = user.id < typedProfile.user_id ? user.id : typedProfile.user_id;
   const pairUserB = user.id < typedProfile.user_id ? typedProfile.user_id : user.id;
+  const editMode = isOwner && search.edit === "1";
+
+  const { data: preferenceRow } = await supabase
+    .from("preferences")
+    .select("*")
+    .eq("user_id", typedProfile.user_id)
+    .maybeSingle();
+  const typedPreferences = (preferenceRow ?? null) as PreferenceRow | null;
+
+  const visibility = typedPreferences?.profile_visibility ?? {};
+  const showAge = visibility.show_age ?? true;
+  const showNationality = visibility.show_nationality ?? true;
+  const showSexualPreference = visibility.show_sexual_preference ?? true;
+
+  const preferenceTags: Partial<Record<OnboardingTagKey, string[]>> = {};
+  const rawTags = typedPreferences?.profile_tags;
+  if (rawTags && typeof rawTags === "object") {
+    for (const key of Object.keys(rawTags) as OnboardingTagKey[]) {
+      const value = rawTags[key];
+      if (Array.isArray(value)) {
+        preferenceTags[key] = value.map((item) => String(item)).filter(Boolean);
+      }
+    }
+  }
 
   if (!isOwner && !typedProfile.is_published) {
     notFound();
@@ -260,15 +309,51 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
 
       <div className="overflow-hidden rounded-xl2 border border-harbor-ink/10 bg-white">
         <div className="relative h-56 w-full bg-gradient-to-r from-[#f3d2a4] via-[#f9e8cb] to-[#d9edf7]">
-          {typedProfile.cover_photo_url ? (
+          {isOwner ? (
+            <MediaInlineEditor
+              uploadAction={updateOwnCover}
+              deleteAction={deleteOwnCover}
+              fieldName="cover_file"
+              returnPath={`/profile/${typedProfile.public_id}`}
+              hasImage={Boolean(typedProfile.cover_photo_url)}
+              uploadLabel="Click cover photo to upload"
+            >
+              {typedProfile.cover_photo_url ? (
+                <img src={typedProfile.cover_photo_url} alt={`${typedProfile.display_name} cover`} className="h-full w-full object-cover" />
+              ) : (
+                <div className="h-full w-full" />
+              )}
+            </MediaInlineEditor>
+          ) : typedProfile.cover_photo_url ? (
             <img src={typedProfile.cover_photo_url} alt={`${typedProfile.display_name} cover`} className="h-full w-full object-cover" />
           ) : null}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white bg-white p-1 shadow-lg">
-            <img
-              src={typedProfile.avatar_url ?? "/logo-mark.svg"}
-              alt={`${typedProfile.display_name} avatar`}
-              className="h-24 w-24 rounded-full object-cover"
-            />
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            {isOwner ? (
+              <MediaInlineEditor
+                uploadAction={updateOwnAvatar}
+                deleteAction={deleteOwnAvatar}
+                fieldName="avatar_file"
+                returnPath={`/profile/${typedProfile.public_id}`}
+                hasImage={Boolean(typedProfile.avatar_url && typedProfile.avatar_url !== "/logo-mark.svg")}
+                uploadLabel="Click avatar to upload"
+              >
+                <div className="rounded-full border-4 border-white bg-white p-1 shadow-lg">
+                  <img
+                    src={typedProfile.avatar_url ?? "/logo-mark.svg"}
+                    alt={`${typedProfile.display_name} avatar`}
+                    className="h-24 w-24 rounded-full object-cover"
+                  />
+                </div>
+              </MediaInlineEditor>
+            ) : (
+              <div className="rounded-full border-4 border-white bg-white p-1 shadow-lg">
+                <img
+                  src={typedProfile.avatar_url ?? "/logo-mark.svg"}
+                  alt={`${typedProfile.display_name} avatar`}
+                  className="h-24 w-24 rounded-full object-cover"
+                />
+              </div>
+            )}
           </div>
         </div>
         <div className="space-y-3 px-5 pb-5 pt-14 text-center">
@@ -277,15 +362,46 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
             <span className={`inline-block size-2 rounded-full ${active ? "bg-emerald-500" : "bg-slate-300"}`} />
             {typedProfile.public_id} · {active ? "Active now" : "Inactive"}
           </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <IdentityPill icon={<GenderIcon value={typedProfile.gender} />} label={genderLabel(typedProfile.gender)} />
+            {showSexualPreference ? (
+              <IdentityPill
+                icon={<OrientationIcon value={typedProfile.sexual_preference} />}
+                label={orientationLabel(typedProfile.sexual_preference)}
+              />
+            ) : null}
+          </div>
           <p className="text-sm text-harbor-ink/75">
-            {typedProfile.age_years} years old · {typedProfile.nationality}
+            {showAge ? `${typedProfile.age_years} years old` : "Age hidden"}
+            {showNationality ? ` · ${typedProfile.nationality}` : ""}
           </p>
-          <p className="text-xs text-harbor-ink/70">
-            {typedProfile.gender} · {typedProfile.sexual_preference}
-          </p>
+          {Object.entries(preferenceTags).some(([, values]) => (values ?? []).length > 0) ? (
+            <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-center gap-2">
+              {Object.entries(preferenceTags).flatMap(([key, values]) =>
+                (values ?? []).slice(0, 3).map((tag) => (
+                  <span key={`${key}-${tag}`} className="rounded-full border border-harbor-ink/15 px-2.5 py-1 text-xs text-harbor-ink/70">
+                    {titleize(tag)}
+                  </span>
+                ))
+              )}
+            </div>
+          ) : null}
           {typedProfile.bio && <p className="mx-auto max-w-2xl text-sm whitespace-pre-wrap">{typedProfile.bio}</p>}
 
-          {!isOwner ? (
+          {isOwner ? (
+            <div className="flex items-center justify-center gap-2">
+              <Link
+                href={
+                  editMode
+                    ? `/profile/${typedProfile.public_id}`
+                    : `/profile/${typedProfile.public_id}?edit=1`
+                }
+                className="btn-secondary no-underline"
+              >
+                {editMode ? "Close Edit" : "Edit Profile"}
+              </Link>
+            </div>
+          ) : (
             <div className="flex flex-wrap items-center justify-center gap-2">
               {!typedRelationship || typedRelationship.status === "closed" ? (
                 <form action={sendFriendRequest}>
@@ -319,33 +435,105 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
                 </button>
               </form>
             </div>
-          ) : null}
+          )}
         </div>
       </div>
 
-      {isOwner ? (
+      {isOwner && editMode ? (
         <form action={updateOwnProfile} className="card grid gap-3">
-          <h2 className="text-lg font-semibold">Edit your profile</h2>
-          <div className="space-y-1">
-            <label className="label">Name</label>
-            <input className="input" name="display_name" defaultValue={typedProfile.display_name} required />
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Edit your profile</h2>
+            <Link href={`/profile/${typedProfile.public_id}`} className="btn-secondary text-xs no-underline">
+              Cancel
+            </Link>
           </div>
+
+          <input type="hidden" name="return_path" value={`/profile/${typedProfile.public_id}`} />
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1">
+              <label className="label">Display name</label>
+              <input className="input" name="display_name" defaultValue={typedProfile.display_name} required />
+            </div>
+            <div className="space-y-1">
+              <label className="label">Nationality</label>
+              <input className="input" name="nationality" defaultValue={typedProfile.nationality} required />
+            </div>
+            <div className="space-y-1">
+              <label className="label">Age</label>
+              <input className="input" name="age_years" type="number" min={13} max={100} defaultValue={typedProfile.age_years} required />
+            </div>
+          </div>
+
+          <fieldset className="grid gap-2">
+            <legend className="label">Gender</legend>
+            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4">
+              {GENDER_OPTIONS.map((value) => (
+                <label key={value} className="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="gender"
+                    value={value}
+                    defaultChecked={typedProfile.gender === value}
+                    className="peer sr-only"
+                  />
+                  <span className="flex items-center gap-2 rounded-xl border border-harbor-ink/15 px-3 py-2 text-sm peer-checked:border-harbor-ink peer-checked:bg-harbor-cream">
+                    <GenderIcon value={value} />
+                    {genderLabel(value)}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="grid gap-2">
+            <legend className="label">Sexual orientation</legend>
+            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+              {SEXUAL_PREFERENCE_OPTIONS.map((value) => (
+                <label key={value} className="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sexual_preference"
+                    value={value}
+                    defaultChecked={typedProfile.sexual_preference === value}
+                    className="peer sr-only"
+                  />
+                  <span className="flex items-center gap-2 rounded-xl border border-harbor-ink/15 px-3 py-2 text-sm peer-checked:border-harbor-ink peer-checked:bg-harbor-cream">
+                    <OrientationIcon value={value} />
+                    {orientationLabel(value)}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
           <div className="space-y-1">
             <label className="label">Bio (optional)</label>
             <textarea className="input min-h-24" name="bio" defaultValue={typedProfile.bio ?? ""} />
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1">
-              <label className="label">Upload profile avatar</label>
-              <input className="input" name="avatar_file" type="file" accept="image/jpeg,image/png,image/webp" />
-            </div>
-            <div className="space-y-1">
-              <label className="label">Upload cover photo</label>
-              <input className="input" name="cover_file" type="file" accept="image/jpeg,image/png,image/webp" />
-            </div>
-          </div>
+          <fieldset className="grid gap-2 rounded-xl border border-harbor-ink/10 bg-harbor-cream/40 p-3">
+            <legend className="label">Profile privacy</legend>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="show_age" defaultChecked={showAge} />
+              Show age on profile card
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="show_nationality" defaultChecked={showNationality} />
+              Show nationality on profile card
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="show_sexual_preference" defaultChecked={showSexualPreference} />
+              Show sexual orientation on profile card
+            </label>
+          </fieldset>
+
+          <PreferenceControls
+            initialMinAge={typedPreferences?.min_age ?? 18}
+            initialMaxAge={typedPreferences?.max_age ?? 35}
+            initialLanguages={typedPreferences?.preferred_languages ?? []}
+            initialTags={preferenceTags}
+          />
 
           <button className="btn w-full md:w-fit" type="submit">
             Save profile changes
