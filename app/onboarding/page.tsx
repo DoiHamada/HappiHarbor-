@@ -8,7 +8,14 @@ function titleize(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export default async function OnboardingPage() {
+type OnboardingPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function OnboardingPage({ searchParams }: OnboardingPageProps) {
+  const search = (await searchParams) ?? {};
+  const error = typeof search.error === "string" ? search.error : null;
+
   const supabase = await createClient();
   const {
     data: { user }
@@ -51,6 +58,8 @@ export default async function OnboardingPage() {
 
   return (
     <section className="mx-auto max-w-3xl space-y-4">
+      {error ? <div className="card text-sm text-red-700">{error}</div> : null}
+
       <div className="card space-y-2">
         <h1 className="text-2xl font-bold">Profile onboarding</h1>
         <p className="text-sm text-harbor-ink/75">

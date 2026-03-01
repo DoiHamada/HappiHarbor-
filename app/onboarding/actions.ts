@@ -24,6 +24,10 @@ function normalizeToken(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
+function onboardingError(message: string): never {
+  redirect(`/onboarding?error=${encodeURIComponent(message)}`);
+}
+
 export async function saveOnboarding(formData: FormData) {
   const supabase = await createClient();
   const {
@@ -51,12 +55,17 @@ export async function saveOnboarding(formData: FormData) {
     })
   );
 
-  if (!displayName) {
-    throw new Error("Display name is required.");
+  const missingFields: string[] = [];
+  if (!displayName) missingFields.push("display name");
+  if (!nationality) missingFields.push("nationality");
+  if (preferredLanguages.length === 0) missingFields.push("at least one language you speak");
+
+  if (missingFields.length > 0) {
+    onboardingError(`Please complete: ${missingFields.join(", ")}.`);
   }
 
   if (!GENDER_OPTIONS.includes(gender as (typeof GENDER_OPTIONS)[number])) {
-    throw new Error("Invalid gender option.");
+    onboardingError("Please choose a valid gender.");
   }
 
   if (
@@ -64,7 +73,7 @@ export async function saveOnboarding(formData: FormData) {
       sexualPreference as (typeof SEXUAL_PREFERENCE_OPTIONS)[number]
     )
   ) {
-    throw new Error("Invalid sexual preference option.");
+    onboardingError("Please choose a valid sexual preference.");
   }
 
   if (
@@ -72,11 +81,7 @@ export async function saveOnboarding(formData: FormData) {
       (value) => !LANGUAGE_OPTIONS.includes(value as (typeof LANGUAGE_OPTIONS)[number]) && !/^[a-z0-9_]{2,40}$/.test(value)
     )
   ) {
-    throw new Error("Invalid preferred language option.");
-  }
-
-  if (preferredLanguages.length === 0) {
-    throw new Error("Add at least one language.");
+    onboardingError("Please choose valid language values.");
   }
 
   const { data: existingProfile } = await supabase
@@ -104,12 +109,12 @@ export async function saveOnboarding(formData: FormData) {
   if (avatarFile instanceof File && avatarFile.size > 0) {
     const allowedTypes = new Set(["image/jpeg", "image/png"]);
     if (!allowedTypes.has(avatarFile.type)) {
-      throw new Error("Invalid avatar file type. Use JPG or PNG.");
+      onboardingError("Avatar must be JPG or PNG.");
     }
 
     const maxBytes = 5 * 1024 * 1024;
     if (avatarFile.size > maxBytes) {
-      throw new Error("Avatar file is too large. Maximum size is 5MB.");
+      onboardingError("Avatar is too large. Maximum size is 5MB.");
     }
 
     const extFromName = avatarFile.name.split(".").pop()?.toLowerCase();
@@ -122,7 +127,7 @@ export async function saveOnboarding(formData: FormData) {
     });
 
     if (uploadError) {
-      throw new Error(`Avatar upload failed: ${uploadError.message}`);
+      onboardingError(`Avatar upload failed: ${uploadError.message}`);
     }
 
     if (existingProfile?.avatar_storage_path) {
@@ -169,7 +174,7 @@ export async function saveOnboarding(formData: FormData) {
   );
 
   if (profileError) {
-    throw new Error(profileError.message);
+    onboardingError(profileError.message);
   }
 
   const preferencePayload = {
@@ -199,7 +204,7 @@ export async function saveOnboarding(formData: FormData) {
     const missingProfileVisibilityColumn = normalized.includes("profile_visibility") && normalized.includes("schema cache");
 
     if (!missingProfileTagsColumn && !missingProfileVisibilityColumn) {
-      throw new Error(preferenceError.message);
+      onboardingError(preferenceError.message);
     }
 
     const { error: fallbackPreferenceError } = await supabase
@@ -219,7 +224,7 @@ export async function saveOnboarding(formData: FormData) {
       );
 
     if (fallbackPreferenceError) {
-      throw new Error(fallbackPreferenceError.message);
+      onboardingError(fallbackPreferenceError.message);
     }
   }
 
