@@ -108,7 +108,6 @@ export async function updateOwnProfile(formData: FormData) {
 
   const displayName = String(formData.get("display_name") ?? "").trim();
   const bio = String(formData.get("bio") ?? "").trim();
-  const isPublished = formData.get("is_published") === "on";
   const avatarFile = formData.get("avatar_file");
   const coverFile = formData.get("cover_file");
 
@@ -191,7 +190,7 @@ export async function updateOwnProfile(formData: FormData) {
     .update({
       display_name: displayName,
       bio: bio || null,
-      is_published: isPublished,
+      is_published: true,
       avatar_url: avatarUrl,
       avatar_storage_path: avatarStoragePath,
       cover_photo_url: coverUrl,

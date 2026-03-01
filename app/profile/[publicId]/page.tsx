@@ -326,18 +326,9 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
       {isOwner ? (
         <form action={updateOwnProfile} className="card grid gap-3">
           <h2 className="text-lg font-semibold">Edit your profile</h2>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1">
-              <label className="label">Name</label>
-              <input className="input" name="display_name" defaultValue={typedProfile.display_name} required />
-            </div>
-            <div className="space-y-1">
-              <label className="label">Profile visibility</label>
-              <label className="flex items-center gap-2 rounded-xl border border-harbor-ink/10 px-3 py-2 text-sm">
-                <input type="checkbox" name="is_published" defaultChecked={typedProfile.is_published} />
-                Public profile (discoverable)
-              </label>
-            </div>
+          <div className="space-y-1">
+            <label className="label">Name</label>
+            <input className="input" name="display_name" defaultValue={typedProfile.display_name} required />
           </div>
 
           <div className="space-y-1">

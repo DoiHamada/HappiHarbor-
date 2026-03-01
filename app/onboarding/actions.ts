@@ -2,20 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { GENDER_OPTIONS, LANGUAGE_OPTIONS, SEXUAL_PREFERENCE_OPTIONS, SKIN_TONE_OPTIONS } from "@/types/profile";
+import { GENDER_OPTIONS, LANGUAGE_OPTIONS, ONBOARDING_TAG_OPTIONS, SEXUAL_PREFERENCE_OPTIONS } from "@/types/profile";
 
 function parseNumber(value: FormDataEntryValue | null, fallback: number): number {
   const parsed = Number(value ?? fallback);
   return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function parseCsv(value: FormDataEntryValue | null): string[] | null {
-  if (!value) return null;
-  const normalized = String(value)
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-  return normalized.length > 0 ? normalized : null;
 }
 
 function parseCheckboxValues(formData: FormData, key: string): string[] {
@@ -27,6 +18,10 @@ function parseCheckboxValues(formData: FormData, key: string): string[] {
 
 function unique(values: string[]): string[] {
   return Array.from(new Set(values));
+}
+
+function normalizeToken(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
 export async function saveOnboarding(formData: FormData) {
@@ -43,28 +38,17 @@ export async function saveOnboarding(formData: FormData) {
   const nationality = String(formData.get("nationality") ?? "").trim();
   const bioRaw = String(formData.get("bio") ?? "").trim();
   const ageYears = parseNumber(formData.get("age_years"), 18);
-  const heightCm = parseNumber(formData.get("height_cm"), 165);
-  const weightKg = parseNumber(formData.get("weight_kg"), 60);
-  const isPublished = formData.get("is_published") === "on";
-  const useAppearanceFilters = formData.get("use_appearance_filters") === "on";
 
   const gender = String(formData.get("gender") ?? "prefer_not_to_say");
   const sexualPreference = String(formData.get("sexual_preference") ?? "prefer_not_to_say");
-  const skinTone = String(formData.get("skin_tone") ?? "prefer_not_to_say");
   const avatarFile = formData.get("avatar_file");
 
-  const preferredGendersFromCheckboxes = parseCheckboxValues(formData, "preferred_genders");
-  const preferredLanguagesFromCheckboxes = parseCheckboxValues(formData, "preferred_languages");
-
-  const preferredGenders = unique(
-    preferredGendersFromCheckboxes.length > 0
-      ? preferredGendersFromCheckboxes
-      : (parseCsv(formData.get("preferred_genders")) ?? [])
-  );
-  const preferredLanguages = unique(
-    preferredLanguagesFromCheckboxes.length > 0
-      ? preferredLanguagesFromCheckboxes
-      : (parseCsv(formData.get("preferred_languages")) ?? [])
+  const preferredLanguages = unique(parseCheckboxValues(formData, "preferred_languages").map(normalizeToken));
+  const profileTags = Object.fromEntries(
+    Object.keys(ONBOARDING_TAG_OPTIONS).map((key) => {
+      const values = unique(parseCheckboxValues(formData, `tag_${key}`).map(normalizeToken));
+      return [key, values];
+    })
   );
 
   if (!displayName) {
@@ -83,37 +67,21 @@ export async function saveOnboarding(formData: FormData) {
     throw new Error("Invalid sexual preference option.");
   }
 
-  if (!SKIN_TONE_OPTIONS.includes(skinTone as (typeof SKIN_TONE_OPTIONS)[number])) {
-    throw new Error("Invalid skin tone option.");
-  }
-
-  if (
-    preferredGenders.some(
-      (value) => !GENDER_OPTIONS.includes(value as (typeof GENDER_OPTIONS)[number])
-    )
-  ) {
-    throw new Error("Invalid preferred gender option.");
-  }
-
   if (
     preferredLanguages.some(
-      (value) => !LANGUAGE_OPTIONS.includes(value as (typeof LANGUAGE_OPTIONS)[number])
+      (value) => !LANGUAGE_OPTIONS.includes(value as (typeof LANGUAGE_OPTIONS)[number]) && !/^[a-z0-9_]{2,40}$/.test(value)
     )
   ) {
     throw new Error("Invalid preferred language option.");
   }
 
-  if (preferredGenders.length === 0) {
-    throw new Error("Choose at least one preferred gender.");
-  }
-
   if (preferredLanguages.length === 0) {
-    throw new Error("Choose at least one communication language.");
+    throw new Error("Add at least one language.");
   }
 
   const { data: existingProfile } = await supabase
     .from("profiles")
-    .select("avatar_storage_path,avatar_url,avatar_key")
+    .select("avatar_storage_path,avatar_url,avatar_key,height_cm,weight_kg,skin_tone")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -129,6 +97,9 @@ export async function saveOnboarding(formData: FormData) {
 
   let avatarUrl: string | null = existingProfile?.avatar_url ?? "/logo-mark.svg";
   let avatarStoragePath: string | null = existingProfile?.avatar_storage_path ?? null;
+  const heightCm = existingProfile?.height_cm ?? 165;
+  const weightKg = existingProfile?.weight_kg ?? 60;
+  const skinTone = existingProfile?.skin_tone ?? "prefer_not_to_say";
 
   if (avatarFile instanceof File && avatarFile.size > 0) {
     const allowedTypes = new Set(["image/jpeg", "image/png"]);
@@ -177,18 +148,6 @@ export async function saveOnboarding(formData: FormData) {
     maxAge = Math.max(minAge, maxAge);
   }
 
-  const preferredNationalities = parseCsv(formData.get("preferred_nationalities"));
-
-  const appearanceFilters = useAppearanceFilters
-    ? {
-        min_height_cm: parseNumber(formData.get("appearance_min_height_cm"), 0) || null,
-        max_height_cm: parseNumber(formData.get("appearance_max_height_cm"), 0) || null,
-        min_weight_kg: parseNumber(formData.get("appearance_min_weight_kg"), 0) || null,
-        max_weight_kg: parseNumber(formData.get("appearance_max_weight_kg"), 0) || null,
-        skin_tones: parseCsv(formData.get("appearance_skin_tones"))
-      }
-    : {};
-
   const { error: profileError } = await supabase.from("profiles").upsert(
     {
       user_id: user.id,
@@ -204,7 +163,7 @@ export async function saveOnboarding(formData: FormData) {
       avatar_url: avatarUrl,
       avatar_storage_path: avatarStoragePath,
       bio: bioRaw || null,
-      is_published: isPublished
+      is_published: true
     },
     { onConflict: "user_id" }
   );
@@ -213,22 +172,50 @@ export async function saveOnboarding(formData: FormData) {
     throw new Error(profileError.message);
   }
 
-  const { error: preferenceError } = await supabase.from("preferences").upsert(
-    {
-      user_id: user.id,
-      min_age: minAge,
-      max_age: maxAge,
-      preferred_genders: preferredGenders,
-      preferred_languages: preferredLanguages,
-      preferred_nationalities: preferredNationalities,
-      use_appearance_filters: useAppearanceFilters,
-      appearance_filters: appearanceFilters
-    },
-    { onConflict: "user_id" }
-  );
+  const preferencePayload = {
+    user_id: user.id,
+    min_age: minAge,
+    max_age: maxAge,
+    preferred_languages: preferredLanguages,
+    preferred_genders: null,
+    preferred_nationalities: null,
+    use_appearance_filters: false,
+    appearance_filters: {},
+    profile_tags: profileTags
+  };
+
+  const { error: preferenceError } = await supabase
+    .from("preferences")
+    .upsert(preferencePayload, { onConflict: "user_id" });
 
   if (preferenceError) {
-    throw new Error(preferenceError.message);
+    const missingProfileTagsColumn =
+      preferenceError.message.includes("profile_tags") &&
+      preferenceError.message.toLowerCase().includes("schema cache");
+
+    if (!missingProfileTagsColumn) {
+      throw new Error(preferenceError.message);
+    }
+
+    const { error: fallbackPreferenceError } = await supabase
+      .from("preferences")
+      .upsert(
+        {
+          user_id: user.id,
+          min_age: minAge,
+          max_age: maxAge,
+          preferred_languages: preferredLanguages,
+          preferred_genders: null,
+          preferred_nationalities: null,
+          use_appearance_filters: false,
+          appearance_filters: {}
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (fallbackPreferenceError) {
+      throw new Error(fallbackPreferenceError.message);
+    }
   }
 
   redirect("/matches");

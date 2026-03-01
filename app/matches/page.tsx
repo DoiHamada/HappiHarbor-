@@ -16,11 +16,7 @@ export default async function MatchesPage() {
     redirect("/onboarding");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("user_id,is_published")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("user_id").eq("user_id", user.id).maybeSingle();
 
   if (!profile) {
     redirect("/onboarding");
@@ -46,12 +42,6 @@ export default async function MatchesPage() {
           Edit profile
         </Link>
       </div>
-
-      {!profile.is_published && (
-        <div className="card text-sm">
-          Your profile is private right now. Publish it in profile settings to become match-eligible.
-        </div>
-      )}
 
       {error && <div className="card text-sm text-red-600">Failed to load matches: {error.message}</div>}
 

@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { GENDER_OPTIONS, LANGUAGE_OPTIONS, SEXUAL_PREFERENCE_OPTIONS, SKIN_TONE_OPTIONS } from "@/types/profile";
+import { GENDER_OPTIONS, SEXUAL_PREFERENCE_OPTIONS, type OnboardingTagKey } from "@/types/profile";
 import { saveOnboarding } from "./actions";
+import { PreferenceControls } from "./preference-controls";
 
 function titleize(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -35,8 +36,18 @@ export default async function OnboardingPage() {
     supabase.from("preferences").select("*").eq("user_id", user.id).maybeSingle()
   ]);
 
-  const preferredGenders = new Set<string>(preferences?.preferred_genders ?? []);
-  const preferredLanguages = new Set<string>(preferences?.preferred_languages ?? []);
+  const preferredLanguages = (preferences?.preferred_languages ?? []) as string[];
+  const preferenceTagsRaw = preferences?.profile_tags as Partial<Record<OnboardingTagKey, unknown>> | null;
+  const preferenceTags: Partial<Record<OnboardingTagKey, string[]>> = {};
+
+  if (preferenceTagsRaw && typeof preferenceTagsRaw === "object") {
+    for (const key of Object.keys(preferenceTagsRaw) as OnboardingTagKey[]) {
+      const value = preferenceTagsRaw[key];
+      if (Array.isArray(value)) {
+        preferenceTags[key] = value.map((item) => String(item)).filter(Boolean);
+      }
+    }
+  }
 
   return (
     <section className="mx-auto max-w-3xl space-y-4">
@@ -108,41 +119,6 @@ export default async function OnboardingPage() {
               ))}
             </select>
           </div>
-          <div className="space-y-1">
-            <label className="label">Skin tone</label>
-            <select className="input" name="skin_tone" defaultValue={profile?.skin_tone ?? "prefer_not_to_say"}>
-              {SKIN_TONE_OPTIONS.map((value) => (
-                <option key={value} value={value}>
-                  {titleize(value)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="label">Height (cm)</label>
-            <input
-              className="input"
-              name="height_cm"
-              type="number"
-              min={100}
-              max={250}
-              defaultValue={profile?.height_cm ?? 165}
-              required
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label">Weight (kg)</label>
-            <input
-              className="input"
-              name="weight_kg"
-              type="number"
-              min={30}
-              max={300}
-              step="0.1"
-              defaultValue={profile?.weight_kg ?? 60}
-              required
-            />
-          </div>
         </div>
 
         <div className="space-y-1">
@@ -150,136 +126,12 @@ export default async function OnboardingPage() {
           <textarea className="input min-h-24" name="bio" defaultValue={profile?.bio ?? ""} />
         </div>
 
-        <div className="grid gap-4 rounded-xl border border-harbor-ink/10 bg-harbor-cream/50 p-4 md:grid-cols-2">
-          <div className="space-y-1">
-            <label className="label">Preferred age min</label>
-            <input
-              className="input"
-              name="min_age"
-              type="number"
-              min={13}
-              max={100}
-              defaultValue={preferences?.min_age ?? 18}
-              required
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label">Preferred age max</label>
-            <input
-              className="input"
-              name="max_age"
-              type="number"
-              min={13}
-              max={100}
-              defaultValue={preferences?.max_age ?? 35}
-              required
-            />
-          </div>
-
-          <fieldset className="space-y-2 md:col-span-2">
-            <legend className="label">Preferred genders (multiple choice)</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {GENDER_OPTIONS.map((value) => (
-                <label key={value} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="preferred_genders" value={value} defaultChecked={preferredGenders.has(value)} />
-                  {titleize(value)}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset className="space-y-2 md:col-span-2">
-            <legend className="label">Communication languages (checkbox)</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {LANGUAGE_OPTIONS.map((value) => (
-                <label key={value} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="preferred_languages" value={value} defaultChecked={preferredLanguages.has(value)} />
-                  {titleize(value)}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <div className="space-y-1 md:col-span-2">
-            <label className="label">Preferred nationalities (comma-separated)</label>
-            <input
-              className="input"
-              name="preferred_nationalities"
-              defaultValue={preferences?.preferred_nationalities?.join(", ") ?? ""}
-              placeholder="Singaporean, Thai"
-            />
-          </div>
-
-          <label className="flex items-center gap-2 text-sm md:col-span-2">
-            <input
-              type="checkbox"
-              name="use_appearance_filters"
-              defaultChecked={preferences?.use_appearance_filters ?? false}
-            />
-            Enable advanced appearance filters (optional)
-          </label>
-
-          <div className="space-y-1">
-            <label className="label">Appearance min height (cm)</label>
-            <input
-              className="input"
-              name="appearance_min_height_cm"
-              type="number"
-              min={100}
-              max={250}
-              defaultValue={preferences?.appearance_filters?.min_height_cm ?? ""}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label">Appearance max height (cm)</label>
-            <input
-              className="input"
-              name="appearance_max_height_cm"
-              type="number"
-              min={100}
-              max={250}
-              defaultValue={preferences?.appearance_filters?.max_height_cm ?? ""}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label">Appearance min weight (kg)</label>
-            <input
-              className="input"
-              name="appearance_min_weight_kg"
-              type="number"
-              min={30}
-              max={300}
-              step="0.1"
-              defaultValue={preferences?.appearance_filters?.min_weight_kg ?? ""}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label">Appearance max weight (kg)</label>
-            <input
-              className="input"
-              name="appearance_max_weight_kg"
-              type="number"
-              min={30}
-              max={300}
-              step="0.1"
-              defaultValue={preferences?.appearance_filters?.max_weight_kg ?? ""}
-            />
-          </div>
-          <div className="space-y-1 md:col-span-2">
-            <label className="label">Appearance skin tones (comma-separated)</label>
-            <input
-              className="input"
-              name="appearance_skin_tones"
-              defaultValue={preferences?.appearance_filters?.skin_tones?.join(", ") ?? ""}
-              placeholder="light, medium"
-            />
-          </div>
-        </div>
-
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="is_published" defaultChecked={profile?.is_published ?? false} />
-          Publish my profile for matching
-        </label>
+        <PreferenceControls
+          initialMinAge={preferences?.min_age ?? 18}
+          initialMaxAge={preferences?.max_age ?? 35}
+          initialLanguages={preferredLanguages}
+          initialTags={preferenceTags}
+        />
 
         <button className="btn w-full md:w-fit" type="submit">
           Save profile
