@@ -14,9 +14,16 @@ export async function SiteHeader() {
   let conversationIds: string[] = [];
   let initialMessageUnreadCount = 0;
   let initialNotificationUnreadCount = 0;
+  let initialMatchRequestCount = 0;
 
   if (user) {
-    const [{ data: myProfile }, { data: conversations }, { data: unreadCountRaw }, { count: unreadNotificationCount }] =
+    const [
+      { data: myProfile },
+      { data: conversations },
+      { data: unreadCountRaw },
+      { count: unreadNotificationCount },
+      { count: pendingMatchCount }
+    ] =
       await Promise.all([
         supabase
           .from("profiles")
@@ -33,13 +40,20 @@ export async function SiteHeader() {
           .from("social_notifications")
           .select("id", { head: true, count: "exact" })
           .eq("recipient_user_id", user.id)
-          .eq("is_read", false)
+          .eq("is_read", false),
+        supabase
+          .from("matches")
+          .select("id", { head: true, count: "exact" })
+          .eq("status", "pending")
+          .neq("created_by", user.id)
+          .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
       ]);
 
     profileHref = myProfile?.public_id ? `/profile/${myProfile.public_id}` : "/onboarding";
     conversationIds = (conversations ?? []).map((row) => row.id);
     initialMessageUnreadCount = Number(unreadCountRaw ?? 0);
     initialNotificationUnreadCount = Number(unreadNotificationCount ?? 0);
+    initialMatchRequestCount = Number(pendingMatchCount ?? 0);
   }
 
   return (
@@ -65,6 +79,7 @@ export async function SiteHeader() {
               profileHref={profileHref}
               initialMessageUnreadCount={initialMessageUnreadCount}
               initialNotificationUnreadCount={initialNotificationUnreadCount}
+              initialMatchRequestCount={initialMatchRequestCount}
               conversationIds={conversationIds}
             />
             {isAdmin && <Link href="/admin">Admin</Link>}

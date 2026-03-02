@@ -90,9 +90,8 @@ export default async function MatchesPage() {
 
   const { data: matches, error } = await supabase
     .from("matches")
-    .select("id,user_a,user_b,status,matched_at,created_at")
+    .select("id,user_a,user_b,status,created_by,matched_at,created_at")
     .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
-    .eq("status", "mutual")
     .order("created_at", { ascending: false })
     .limit(30);
 
@@ -126,9 +125,9 @@ export default async function MatchesPage() {
     <section className="space-y-4">
       <div className="card flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Active Connections</h1>
+          <h1 className="text-2xl font-bold">Your matches</h1>
           <p className="text-sm text-harbor-ink/75">
-            Connected members are shown here for immediate messaging.
+            Curated non-swipe suggestions and connection states appear here.
           </p>
         </div>
         <Link href="/onboarding" className="btn-secondary no-underline">
@@ -139,9 +138,7 @@ export default async function MatchesPage() {
       {error && <div className="card text-sm text-red-600">Failed to load matches: {error.message}</div>}
 
       {typedMatches.length === 0 ? (
-        <div className="card text-sm text-harbor-ink/75">
-          No active connections right now. Closed or canceled requests are moved out of this list.
-        </div>
+        <div className="card text-sm text-harbor-ink/75">No matches yet. Check back soon.</div>
       ) : (
         <div className="grid gap-3">
           {typedMatches.map((match) => {
@@ -150,6 +147,7 @@ export default async function MatchesPage() {
             const publicId = otherProfile?.public_id ?? `HH-${otherUserId.replaceAll("-", "").slice(0, 12).toUpperCase()}`;
             const otherTagSet = toTagSet(preferenceByUserId.get(otherUserId)?.profile_tags ?? null);
             const interest = commonInterest(myTagSet, otherTagSet);
+            const isMutual = match.status === "mutual";
 
             return (
               <div key={match.id} className="space-y-2">
@@ -157,13 +155,18 @@ export default async function MatchesPage() {
                   avatarUrl={otherProfile?.avatar_url ?? "/logo-mark.svg"}
                   displayName={otherProfile?.display_name ?? "Member"}
                   publicId={publicId}
+                  profileHref={`/profile/${publicId}`}
                   isActive={isRecentlyActive(otherProfile?.last_active_at)}
-                  nameAdornment={
+                  nameAdornment={isMutual ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
                       <HandshakeIcon />
                       Connected
                     </span>
-                  }
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-harbor-cream px-2 py-1 text-xs font-semibold text-harbor-ink/80">
+                      {titleize(match.status)}
+                    </span>
+                  )}
                   meta={
                     <p className="flex items-center gap-2">
                       <span className={`inline-block size-2 rounded-full ${isRecentlyActive(otherProfile?.last_active_at) ? "bg-emerald-500" : "bg-slate-300"}`} />
@@ -182,7 +185,7 @@ export default async function MatchesPage() {
                     </form>
                   }
                 />
-                {interest ? (
+                {isMutual && interest ? (
                   <div className="card py-3 text-sm text-harbor-ink/80">
                     <span className="inline-flex items-center rounded-full border border-harbor-ink/15 bg-harbor-cream px-3 py-1 text-xs font-semibold">
                       Common Interest: {interest}

@@ -552,51 +552,6 @@ export default async function PublicProfilePage({ params, searchParams }: Profil
         </form>
       ) : null}
 
-      {isOwner ? (
-        <div className="card space-y-3">
-          <h2 className="text-lg font-semibold">Friend Requests</h2>
-          {typedIncomingRequests.length === 0 ? (
-            <p className="text-sm text-harbor-ink/75">No pending requests.</p>
-          ) : (
-            <div className="grid gap-3">
-              {typedIncomingRequests.map((request) => {
-                const requesterId = request.created_by;
-                if (!requesterId) return null;
-                const requester = requestProfilesById.get(requesterId);
-                const requesterPublicId = requester?.public_id ?? fallbackPublicId(requesterId);
-                return (
-                  <article key={request.id} className="flex items-center justify-between rounded-xl border border-harbor-ink/10 p-3">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={requester?.avatar_url ?? "/logo-mark.svg"}
-                        alt={`${requester?.display_name ?? "Member"} avatar`}
-                        className="h-10 w-10 rounded-full border border-harbor-ink/10 object-cover"
-                      />
-                      <div>
-                        <p className="text-sm font-semibold">{requester?.display_name ?? "Member"}</p>
-                        <p className="text-xs text-harbor-ink/70">{requesterPublicId}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Link href={`/profile/${requesterPublicId}`} className="btn-secondary px-3 py-1.5 text-xs no-underline">
-                        View
-                      </Link>
-                      <form action={acceptFriendRequest}>
-                        <input type="hidden" name="request_id" value={request.id} />
-                        <input type="hidden" name="return_path" value={`/profile/${typedProfile.public_id}`} />
-                        <button className="btn px-3 py-1.5 text-xs" type="submit">
-                          Accept
-                        </button>
-                      </form>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      ) : null}
-
       <div className="card space-y-2">
         <h2 className="text-lg font-semibold">Posts</h2>
         <p className="text-xs text-harbor-ink/65">Ordered by newest first.</p>

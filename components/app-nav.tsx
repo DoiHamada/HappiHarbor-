@@ -11,6 +11,7 @@ type AppNavProps = {
   profileHref: string;
   initialMessageUnreadCount: number;
   initialNotificationUnreadCount: number;
+  initialMatchRequestCount: number;
   conversationIds: string[];
 };
 
@@ -112,11 +113,13 @@ export function AppNav({
   profileHref,
   initialMessageUnreadCount,
   initialNotificationUnreadCount,
+  initialMatchRequestCount,
   conversationIds
 }: AppNavProps) {
   const pathname = usePathname();
   const [messageUnreadCount, setMessageUnreadCount] = useState(initialMessageUnreadCount);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(initialNotificationUnreadCount);
+  const [matchRequestCount, setMatchRequestCount] = useState(initialMatchRequestCount);
   const conversationSetRef = useRef(new Set(conversationIds));
 
   useEffect(() => {
@@ -163,13 +166,19 @@ export function AppNav({
 
   useEffect(() => {
     const supabase = createClient();
+    let active = true;
     const refreshUnread = async () => {
-      const { count } = await supabase
-        .from("social_notifications")
-        .select("id", { head: true, count: "exact" })
-        .eq("recipient_user_id", userId)
-        .eq("is_read", false);
-      setNotificationUnreadCount(Number(count ?? 0));
+      try {
+        const { count } = await supabase
+          .from("social_notifications")
+          .select("id", { head: true, count: "exact" })
+          .eq("recipient_user_id", userId)
+          .eq("is_read", false);
+        if (!active) return;
+        setNotificationUnreadCount(Number(count ?? 0));
+      } catch {
+        // Ignore transient network failures (e.g. offline, flaky VPN).
+      }
     };
 
     const channel = supabase
@@ -186,9 +195,57 @@ export function AppNav({
           void refreshUnread();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          void refreshUnread();
+        }
+      });
 
     return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let active = true;
+    const refreshPendingMatches = async () => {
+      try {
+        const { count } = await supabase
+          .from("matches")
+          .select("id", { head: true, count: "exact" })
+          .eq("status", "pending")
+          .neq("created_by", userId)
+          .or(`user_a.eq.${userId},user_b.eq.${userId}`);
+        if (!active) return;
+        setMatchRequestCount(Number(count ?? 0));
+      } catch {
+        // Ignore transient network failures (e.g. offline, flaky VPN).
+      }
+    };
+
+    const channel = supabase
+      .channel(`matches-pending-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "matches"
+        },
+        () => {
+          void refreshPendingMatches();
+        }
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          void refreshPendingMatches();
+        }
+      });
+
+    return () => {
+      active = false;
       void supabase.removeChannel(channel);
     };
   }, [userId]);
@@ -204,7 +261,12 @@ export function AppNav({
         badge: messageUnreadCount > 0 ? messageUnreadCount : undefined
       },
       { href: profileHref, label: "Profile", icon: <ProfileIcon active={pathname.startsWith("/profile") || pathname.startsWith("/onboarding")} /> },
-      { href: "/matches", label: "Matches", icon: <MatchesIcon active={pathname.startsWith("/matches")} /> },
+      {
+        href: "/matches",
+        label: "Matches",
+        icon: <MatchesIcon active={pathname.startsWith("/matches")} />,
+        dot: matchRequestCount > 0
+      },
       {
         href: "/notifications",
         label: "Notifications",
@@ -212,7 +274,7 @@ export function AppNav({
         dot: notificationUnreadCount > 0
       }
     ],
-    [pathname, profileHref, messageUnreadCount, notificationUnreadCount]
+    [pathname, profileHref, messageUnreadCount, notificationUnreadCount, matchRequestCount]
   );
 
   return (
