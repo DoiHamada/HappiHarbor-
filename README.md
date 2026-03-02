@@ -53,3 +53,20 @@ set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || '{"role":"ad
 where email = 'your-admin-email@example.com';
 ```
 Sign out/in after that.
+
+## Mobile app (Phase 2 / Expo)
+A React Native + Expo mobile implementation is now available in:
+- `/Users/doipantsin/myprojects/DatingApp/mobile`
+
+Quick start:
+```bash
+cd mobile
+npm install
+npm start
+```
+
+Set mobile env vars in `mobile/.env`:
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+See `/Users/doipantsin/myprojects/DatingApp/mobile/README.md` for feature coverage and details.
