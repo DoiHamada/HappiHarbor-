@@ -11,7 +11,11 @@ type FeedPost = {
   user_id: string;
   thought: string | null;
   created_at: string;
-  profiles: { display_name: string; public_id: string | null } | Array<{ display_name: string; public_id: string | null }> | null;
+  profiles: { display_name: string; public_id: string | null } | null;
+};
+
+type FeedPostRaw = Omit<FeedPost, "profiles"> & {
+  profiles: FeedPost["profiles"] | Array<{ display_name: string; public_id: string | null }>;
 };
 
 export default function DiscoverScreen() {
@@ -33,7 +37,7 @@ export default function DiscoverScreen() {
       return;
     }
 
-    const typed = ((data ?? []) as FeedPost[]).map((post) => ({
+    const typed = ((data ?? []) as FeedPostRaw[]).map((post) => ({
       ...post,
       profiles: Array.isArray(post.profiles) ? (post.profiles[0] ?? null) : post.profiles
     }));
