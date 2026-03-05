@@ -64,6 +64,8 @@ export default async function HomePage() {
       body: "Join interest-based groups and local harbor events to meet people in a natural, low-pressure environment."
     }
   ];
+  const iosDownloadUrl = process.env.NEXT_PUBLIC_IOS_APP_URL ?? "#";
+  const androidDownloadUrl = process.env.NEXT_PUBLIC_ANDROID_APP_URL ?? "#";
 
   return (
     <div className="space-y-0">
@@ -92,6 +94,23 @@ export default async function HomePage() {
             >
               See how it works
             </Link>
+          </div>
+          <div className="rounded-3xl border border-[#ebc990] bg-[#fff6e8] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#c46c00]">Download the Mobile App</p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Link
+                href={iosDownloadUrl}
+                className="inline-flex items-center rounded-full bg-[#10162f] px-5 py-2.5 text-sm font-semibold text-white no-underline"
+              >
+                Download for iOS
+              </Link>
+              <Link
+                href={androidDownloadUrl}
+                className="inline-flex items-center rounded-full bg-[#0f9f73] px-5 py-2.5 text-sm font-semibold text-white no-underline"
+              >
+                Download for Android
+              </Link>
+            </div>
           </div>
         </div>
         <div className="rounded-[2.25rem] border-[14px] border-[#8b5a2a] bg-[#d2b28f] p-0 shadow-[0_30px_45px_-30px_rgba(15,19,38,0.65)]">
@@ -217,12 +236,12 @@ export default async function HomePage() {
             <h3 className="text-sm font-bold uppercase tracking-wide text-[#131a30]">App</h3>
             <ul className="mt-4 space-y-3 text-sm text-[#4d556c]">
               <li>
-                <Link href="#" className="no-underline hover:text-[#131a30]">
+                <Link href={iosDownloadUrl} className="no-underline hover:text-[#131a30]">
                   Download iOS
                 </Link>
               </li>
               <li>
-                <Link href="#" className="no-underline hover:text-[#131a30]">
+                <Link href={androidDownloadUrl} className="no-underline hover:text-[#131a30]">
                   Download Android
                 </Link>
               </li>

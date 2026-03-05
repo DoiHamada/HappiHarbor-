@@ -6,7 +6,7 @@ type SocialNotificationRow = {
   id: string;
   recipient_user_id: string;
   actor_user_id: string;
-  type: "reaction" | "comment" | "profile_view" | "friend_request";
+  type: "reaction" | "comment" | "profile_view" | "follow";
   post_id: string | null;
   reaction: string | null;
   details: string | null;
@@ -94,8 +94,8 @@ export default async function NotificationsPage() {
             } else if (item.type === "profile_view") {
               const views = profileViewCountByActor.get(item.actor_user_id) ?? 1;
               title = `${actorName} viewed your profile (${views} ${views === 1 ? "time" : "times"})`;
-            } else if (item.type === "friend_request") {
-              title = `${actorName} sent you a friend request`;
+            } else if (item.type === "follow") {
+              title = `${actorName} followed you`;
             }
 
             return (

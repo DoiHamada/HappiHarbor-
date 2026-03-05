@@ -10,16 +10,21 @@
       "resizeMode": "contain",
       "backgroundColor": "#F8F4EE"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.happiharbor-mobile"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#F8F4EE"
       }
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router"
+    ],
     "experiments": {
       "typedRoutes": true
     }

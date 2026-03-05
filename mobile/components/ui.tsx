@@ -10,6 +10,14 @@ export function Card({ children }: PropsWithChildren) {
   return <View style={styles.card}>{children}</View>;
 }
 
+export function SectionTitle({ title }: { title: string }) {
+  return (
+    <View>
+      <Text style={styles.sectionTitle}>{title}</Text>
+    </View>
+  );
+}
+
 export function Heading({ children }: PropsWithChildren) {
   return <Text style={styles.heading}>{children}</Text>;
 }
@@ -26,18 +34,25 @@ export function Button({
   label,
   onPress,
   disabled,
-  secondary
+  secondary,
+  compact
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   secondary?: boolean;
+  compact?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      style={[styles.button, secondary ? styles.buttonSecondary : styles.buttonPrimary, disabled && styles.buttonDisabled]}
+      style={[
+        styles.button,
+        compact && styles.buttonCompact,
+        secondary ? styles.buttonSecondary : styles.buttonPrimary,
+        disabled && styles.buttonDisabled
+      ]}
     >
       <Text style={[styles.buttonText, secondary && styles.buttonSecondaryText]}>{label}</Text>
     </Pressable>
@@ -66,7 +81,7 @@ export function Busy({ label = "Loading..." }: { label?: string }) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.page,
+    backgroundColor: colors.pageAccent,
     padding: 16,
     gap: 12
   },
@@ -74,14 +89,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 14,
+    borderRadius: 20,
     padding: 14,
-    gap: 8
+    gap: 8,
+    shadowColor: "#111827",
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2
   },
   heading: {
     color: colors.text,
-    fontSize: 22,
-    fontWeight: "700"
+    fontSize: 24,
+    fontWeight: "800"
+  },
+  sectionTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "800"
   },
   body: {
     color: colors.muted,
@@ -90,16 +115,21 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: 13,
     paddingHorizontal: 12,
     paddingVertical: 10,
     color: colors.text,
     backgroundColor: "#fff"
   },
   button: {
-    borderRadius: 10,
-    paddingVertical: 11,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     alignItems: "center"
+  },
+  buttonCompact: {
+    paddingVertical: 9,
+    paddingHorizontal: 10
   },
   buttonPrimary: {
     backgroundColor: colors.primary

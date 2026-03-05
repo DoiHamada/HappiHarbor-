@@ -34,7 +34,6 @@ export const ONBOARDING_TAG_OPTIONS = {
   hobbies: ["travel", "hiking", "cooking", "gaming", "photography", "reading", "art"],
   education: ["high_school", "bachelors", "masters", "doctorate", "self_taught"],
   religion: ["christianity", "islam", "hinduism", "buddhism", "judaism", "agnostic", "atheist"],
-  nationality: ["american", "canadian", "mexican", "indian", "filipino", "korean", "japanese"],
   sports: ["soccer", "basketball", "tennis", "swimming", "running", "gym", "yoga"],
   music: ["pop", "hip_hop", "r_and_b", "rock", "jazz", "k_pop", "classical"],
   zodiac_sign: [

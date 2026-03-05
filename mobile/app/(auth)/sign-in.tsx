@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Platform, Text, View } from "react-native";
 import { router } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { Body, Button, Card, Heading, InlineStatus, Input, Screen } from "@/components/ui";
+import { AppLogo } from "@/components/app-logo";
 
 type Mode = "sign_in" | "sign_up" | "forgot";
 
@@ -51,7 +52,8 @@ export default function SignInScreen() {
     <Screen>
       <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", default: undefined })}>
         <Card>
-          <Heading>Welcome to HappiHarbor</Heading>
+          <AppLogo />
+          <Heading>Welcome</Heading>
           <Body>Sign in, create account, or recover password.</Body>
 
           <View style={{ flexDirection: "row", gap: 8 }}>

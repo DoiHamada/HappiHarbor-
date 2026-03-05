@@ -48,7 +48,7 @@ export default async function FeedPage({ searchParams }: FeedPageProps) {
 
   const { data: posts, error: postsError } = await supabase
     .from("feed_posts")
-    .select("id,user_id,thought,photo_path,created_at,profiles(display_name,avatar_key)")
+    .select("id,user_id,thought,photo_path,created_at,profiles!feed_posts_user_id_fkey(display_name,avatar_key)")
     .order("created_at", { ascending: false })
     .limit(50);
 

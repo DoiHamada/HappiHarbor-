@@ -1,13 +1,20 @@
+import { useEffect, useState } from "react";
 import { Redirect } from "expo-router";
 import { useSession } from "@/lib/session";
-import { Busy } from "@/components/ui";
+import { LaunchScreen } from "@/components/launch-screen";
 
 export default function IndexScreen() {
   const { loading, user, profile } = useSession();
+  const [minLaunchDone, setMinLaunchDone] = useState(false);
 
-  if (loading) return <Busy label="Preparing HappiHarbor..." />;
+  useEffect(() => {
+    const timer = setTimeout(() => setMinLaunchDone(true), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (loading || !minLaunchDone) return <LaunchScreen />;
   if (!user) return <Redirect href="/(auth)/sign-in" />;
   if (!user.email_confirmed_at || !profile?.user_id) return <Redirect href="/onboarding" />;
 
-  return <Redirect href="/(app)/discover" />;
+  return <Redirect href="/(app)/sail" />;
 }

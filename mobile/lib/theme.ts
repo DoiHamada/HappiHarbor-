@@ -1,11 +1,15 @@
 export const colors = {
-  page: "#F8F4EE",
+  page: "#F6F6F9",
+  pageAccent: "#EEF3FF",
   card: "#FFFFFF",
-  border: "#E9DFD1",
-  text: "#2A2A2A",
-  muted: "#6F6A63",
-  primary: "#EC9F29",
+  border: "#E7EAF2",
+  text: "#111827",
+  muted: "#667085",
+  primary: "#F97316",
+  primaryDeep: "#C2410C",
+  primarySoft: "#FFE6D5",
+  secondary: "#2563EB",
   success: "#2E9C6A",
   danger: "#C64D4D",
-  chip: "#FAEFD8"
+  chip: "#F3F7FF"
 };

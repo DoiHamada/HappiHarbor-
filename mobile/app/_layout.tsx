@@ -8,7 +8,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <SessionProvider>
         <StatusBar style="dark" />
-        <Stack screenOptions={{ headerStyle: { backgroundColor: "#F8F4EE" }, headerShadowVisible: false }}>
+        <Stack screenOptions={{ headerStyle: { backgroundColor: "#F8F4EE" } }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)/sign-in" options={{ title: "Welcome" }} />
           <Stack.Screen name="onboarding" options={{ title: "Onboarding" }} />

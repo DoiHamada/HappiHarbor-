@@ -97,12 +97,12 @@ export async function sendFriendRequest(formData: FormData) {
   const status = String(data ?? "");
   const info =
     status === "accepted"
-      ? "Friend request accepted."
+      ? "Follow accepted."
       : status === "already_friends"
-        ? "You are already friends."
+        ? "You already follow each other."
         : status === "already_requested"
-          ? "Friend request already sent."
-          : "Friend request sent.";
+          ? "Follow already requested."
+          : "Followed.";
 
   if (status === "requested") {
     const userA = user.id < targetUserId ? user.id : targetUserId;
@@ -117,8 +117,8 @@ export async function sendFriendRequest(formData: FormData) {
     await supabase.from("social_notifications").insert({
       recipient_user_id: targetUserId,
       actor_user_id: user.id,
-      type: "friend_request",
-      details: matchRow?.id ? `match:${matchRow.id}` : "friend_request"
+      type: "follow",
+      details: matchRow?.id ? `match:${matchRow.id}` : "follow"
     });
   }
 
@@ -160,13 +160,13 @@ export async function cancelFriendRequest(formData: FormData) {
       .update({ is_read: true })
       .eq("recipient_user_id", targetUserId)
       .eq("actor_user_id", user.id)
-      .eq("type", "friend_request")
+      .eq("type", "follow")
       .eq("is_read", false);
   }
 
   const info =
     status === "canceled"
-      ? "Friend request canceled."
+      ? "Follow canceled."
       : status === "not_pending"
         ? "This request is no longer pending."
         : "No request to cancel.";
@@ -194,7 +194,7 @@ export async function acceptFriendRequest(formData: FormData) {
   }
 
   const status = String(data ?? "");
-  const info = status === "accepted" ? "Friend request accepted." : "Request updated.";
+  const info = status === "accepted" ? "Follow accepted." : "Request updated.";
 
   revalidatePath(path);
   revalidatePath("/discover");
